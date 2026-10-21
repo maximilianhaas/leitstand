@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { MODES } from './modes'
 
 // The test's $ has no $.state of its own: the stored mode is read back
 // through `/modus` without an argument, which reports it.
@@ -37,4 +38,40 @@ test('/modus with an unknown name refuses and changes nothing', async ($, on) =>
 test('/modus alone shows the current mode', async ($, on) => {
   await start($, on)
   expect(await modus($, '')).toContain('Begleitet')
+})
+
+const BASE = { id: 'base', text: 'x', scope: 'shared' } as const
+
+async function compose($: any, on: any) {
+  on('prompt.compose', () => ({ sections: [BASE] }))
+  await start($, on)
+}
+
+const INPUT = { model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] }
+const sections = async ($: any) => (await $.prompt.compose(INPUT)).sections
+
+test('abwesend appends its rules last, as a session section', async ($, on) => {
+  await compose($, on)
+  await modus($, 'abwesend')
+  const list = await sections($)
+  expect(list[0].id).toBe('base')
+  expect(list.at(-1)).toEqual({ id: 'leitstand-modus', text: MODES.abwesend.rules, scope: 'session' })
+})
+
+test('vorbereiten appends its own rules', async ($, on) => {
+  await compose($, on)
+  await modus($, 'vorbereiten')
+  expect((await sections($)).at(-1).text).toBe(MODES.vorbereiten.rules)
+})
+
+test('no mode set: prompt unchanged', async ($, on) => {
+  await compose($, on)
+  expect(await sections($)).toEqual([BASE])
+})
+
+test('back to begleitet removes the block', async ($, on) => {
+  await compose($, on)
+  await modus($, 'abwesend')
+  await modus($, 'begleitet')
+  expect(await sections($)).toEqual([BASE])
 })

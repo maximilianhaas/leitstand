@@ -31,4 +31,17 @@ export const register: Register = on => {
 
     return { text: `Modus: ${MODES[id].label}. Gilt ab der nächsten Runde.` }
   })
+
+  on('prompt.compose', async ($, e, next) => {
+    const base = await next(e)
+    try {
+      const rules = MODES[toMode((await $.state.get(MODE_REF)).value)].rules
+      if (!rules) return base
+
+      return { sections: [...base.sections, { id: 'leitstand-modus', text: rules, scope: 'session' }] }
+    } catch {
+      // the session must never fail because of this mod
+      return base
+    }
+  })
 }
