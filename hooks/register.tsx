@@ -34,19 +34,19 @@ export const register: Register = on => {
     await $.state.set(MODE_REF, id)
     $.ui.status(id === 'begleitet' ? undefined : `Modus: ${MODES[id].label}`)
 
-    return { text: `Modus: ${MODES[id].label}. Gilt ab der nächsten Runde.` }
+    return { text: `Modus: ${MODES[id].label}. Gilt ab deiner nächsten Nachricht.` }
   })
 
-  on('prompt.compose', async ($, e, next) => {
-    const base = await next(e)
+  on('prompt.submit', async ($, e, next) => {
+    let rules: string | null
     try {
-      const rules = MODES[toMode((await $.state.get(MODE_REF)).value)].rules
-      if (!rules) return base
-
-      return { sections: [...base.sections, { id: 'leitstand:modus', text: rules, scope: 'session' }] }
+      rules = MODES[toMode((await $.state.get(MODE_REF)).value)].rules
     } catch {
       // the session must never fail because of this mod
-      return base
+      return next(e)
     }
+    if (!rules) return next(e)
+
+    return next({ ...e, context: [...(e.context ?? []), rules] })
   })
 }

@@ -40,40 +40,43 @@ test('/modus alone shows the current mode', async ($, on) => {
   expect(await modus($, '')).toContain('Begleitet')
 })
 
-const BASE = { id: 'base', text: 'x', scope: 'shared' } as const
-
-async function compose($: any, on: any) {
-  on('prompt.compose', () => ({ sections: [BASE] }))
+// What the prompt carries once the plugin is done: the stand-in for the
+// engine records the input it receives.
+async function submit($: any, on: any) {
+  const seen: any[] = []
+  on('prompt.submit', (_: unknown, e: any) => {
+    seen.push(e)
+    return { text: e.text }
+  })
   await start($, on)
+  return async (text = 'hallo') => {
+    await $.prompt.submit({ text })
+    return seen.at(-1)?.context ?? []
+  }
 }
 
-const INPUT = { model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] }
-const sections = async ($: any) => (await $.prompt.compose(INPUT)).sections
-
-test('abwesend appends its rules last, as a session section', async ($, on) => {
-  await compose($, on)
+test('abwesend attaches its rules to the prompt', async ($, on) => {
+  const send = await submit($, on)
   await modus($, 'abwesend')
-  const list = await sections($)
-  expect(list[0].id).toBe('base')
-  expect(list.at(-1)).toEqual({ id: 'leitstand:modus', text: MODES.abwesend.rules, scope: 'session' })
+  expect(await send()).toEqual([MODES.abwesend.rules])
 })
 
-test('vorbereiten appends its own rules', async ($, on) => {
-  await compose($, on)
+test('vorbereiten attaches its own rules', async ($, on) => {
+  const send = await submit($, on)
   await modus($, 'vorbereiten')
-  expect((await sections($)).at(-1).text).toBe(MODES.vorbereiten.rules)
+  expect(await send()).toEqual([MODES.vorbereiten.rules])
 })
 
-test('no mode set: prompt unchanged', async ($, on) => {
-  await compose($, on)
-  expect(await sections($)).toEqual([BASE])
+test('no mode set: nothing attached', async ($, on) => {
+  const send = await submit($, on)
+  expect(await send()).toEqual([])
 })
 
-test('back to begleitet removes the block', async ($, on) => {
-  await compose($, on)
+test('back to begleitet attaches nothing again', async ($, on) => {
+  const send = await submit($, on)
   await modus($, 'abwesend')
   await modus($, 'begleitet')
-  expect(await sections($)).toEqual([BASE])
+  expect(await send()).toEqual([])
 })
 
 test('a new start of the session restores the status line', async ($, on) => {

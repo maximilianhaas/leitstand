@@ -76,15 +76,17 @@ leitstand/
     Statuszeile setzen, Bestätigung zurückgeben.
   - ohne Namen: aktuellen Modus und die drei Möglichkeiten anzeigen.
   - unbekannter Name: Hinweis mit den gültigen Namen, nichts ändern.
-- **Regelblock** (`prompt.compose`): Ist der Modus nicht „begleitet“, wird ein
-  Abschnitt `leitstand:modus` mit `scope: 'session'` ans Ende angehängt.
-  Wirksam ab der nächsten Runde.
+- **Regelblock** (`prompt.submit`): Ist der Modus nicht „begleitet“, hängt die
+  Mod den Regeltext als unsichtbaren `context` an jede Nachricht von Max an
+  (ca. 200 Tokens je Nachricht). Wirksam ab der nächsten Nachricht.
+  Geändert am 21.10.2026: Der ursprüngliche Weg `prompt.compose` wird in der
+  Desktop-App bei echten Runden nie aufgerufen (Echttest, Zähler blieb leer).
 - **Statuszeile** (`$.ui.status`): „Modus: Abwesend“ bzw. „Modus: Nur
   vorbereiten“; bei Begleitet leer.
 
 ### Datenfluss
 `/modus abwesend` → `command.run` → `$.state.mode = 'abwesend'` → nächste
-Runde: `prompt.compose` liest den Modus → hängt den Regelblock an → Claude
+Nachricht: `prompt.submit` liest den Modus → hängt den Regelblock an → Claude
 arbeitet nach den Regeln.
 
 ### Speicherung
@@ -101,13 +103,13 @@ Neuer Absatz unter „Arbeitsweise“ in `~/.claude/CLAUDE.md`:
 ## Fehlerfälle
 - Unbekannter Modusname: Hinweis, keine Änderung.
 - Fehlender oder ungültiger gespeicherter Wert: wie „begleitet“ behandeln.
-- Hook-Fehler in `prompt.compose`: Prompt unverändert durchreichen
+- Fehler beim Lesen des Modus in `prompt.submit`: Nachricht unverändert durchreichen
   (die Sitzung darf nie an der Mod scheitern).
 
 ## Tests
 - Automatisch (`claude plugin test`):
   1. `/modus abwesend` speichert den Modus und meldet ihn zurück.
-  2. Bei „abwesend“ und „vorbereiten“ hängt `prompt.compose` den passenden
+  2. Bei „abwesend“ und „vorbereiten“ hängt `prompt.submit` den passenden
      Abschnitt an; bei „begleitet“ und ohne Wert nicht.
   3. `/modus quatsch` lehnt ab und ändert nichts.
   4. `/modus` ohne Argument zeigt den aktuellen Modus.
