@@ -1,1 +1,7 @@
-{ "name": "leitstand", "version": "0.1.0", "description": "Agentenmodi pro Sitzung (/modus)", "types": "./types/index.d.ts" }
+{
+  "name": "leitstand",
+  "version": "0.1.0",
+  "description": "Agentenmodi pro Sitzung (/modus)",
+  "author": { "name": "Maximilian Haas" },
+  "types": "./types/index.d.ts"
+}

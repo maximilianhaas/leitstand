@@ -1,0 +1,9 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "leitstand",
+  "description": "Agentenmodi pro Sitzung",
+  "owner": { "name": "Maximilian Haas" },
+  "plugins": [
+    { "name": "leitstand", "description": "Agentenmodi pro Sitzung (/modus)", "source": "./", "category": "productivity" }
+  ]
+}
