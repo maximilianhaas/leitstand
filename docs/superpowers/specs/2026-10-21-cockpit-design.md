@@ -13,7 +13,8 @@ von 5 Sekunden, welche Sitzungen arbeiten, welche auf ihn warten und welche
 fertig sind, dazu Modus und laufende Unteragenten.
 
 **Nicht Teil von Stufe 2:** Modus aus dem Cockpit umschalten, Klick auf eine
-Zeile springt zur Sitzung (bietet die Mod-API nicht), Aufräumen alter Dateien.
+Zeile springt zur Sitzung (bietet die Mod-API nicht), Aufräumen alter Dateien
+(`$.fs` kann nicht löschen; die Dateien sind klein, ausgeblendet wird im Cockpit).
 
 ## Grundsatz
 Kein Raten. Jeder Status kommt aus einem Ereignis, das die Sitzung selbst meldet.
@@ -48,7 +49,9 @@ ersetzt; die Änderung bekommt Max zum OK. Danach wird die Test-Mod gelöscht.
 ## Melder (läuft in jeder Sitzung)
 
 ### Datei
-`~/.claude/leitstand/<sessionId>.json`, geschrieben nur von der eigenen Sitzung:
+`~/.claude/leitstand/<sessionId>.json`, geschrieben nur von der eigenen Sitzung.
+Der Home-Pfad kommt aus `$.env.get("HOME")`; `$.fs.write` legt fehlende Ordner
+selbst an:
 
 ```json
 {
@@ -69,7 +72,7 @@ ersetzt; die Änderung bekommt Max zum OK. Danach wird die Test-Mod gelöscht.
   (mit „…“ gekürzt). Bis dahin leer. Grund: Die Mod-API kennt den
   Sitzungstitel der App nicht.
 - `project`: letzter Teil von `cwd`.
-- `status`: `arbeitend`, `wartet` oder `bereit`.
+- `status`: `arbeitend`, `wartet`, `bereit` oder `beendet`.
 - `waitingFor`: bei `wartet` `"Rückfrage"` oder `"Plan"`, sonst `null`.
 - `mode`: Agentenmodus aus Stufe 1 (`begleitet`, `abwesend`, `vorbereiten`).
 - `agents`: Zahl der Unteragenten mit Status `running` laut `$.agent.list()`.
@@ -88,7 +91,7 @@ ersetzt; die Änderung bekommt Max zum OK. Danach wird die Test-Mod gelöscht.
 | `turn.complete` (Hauptschleife) | `wartet` / „Rückfrage“, wenn wrap_up eine Frage hatte, sonst `bereit` (auch bei Abbruch oder Fehler); Merker zurücksetzen |
 | `turn.start` / `turn.complete` eines Unteragenten | `agents` neu zählen und schreiben |
 | `/modus` (Stufe 1) | `mode` sofort mitschreiben |
-| `session.end` | eigene Datei löschen |
+| `session.end` | Status `beendet` schreiben (`$.fs` kann nicht löschen) |
 
 Die wrap_up-Regel passt zur Regel in Max' CLAUDE.md: Jede Rückfrage geht über
 die Frage-Box. Rechte-Abfragen der App (Permission-Dialoge) sieht die Mod nicht;
@@ -103,8 +106,7 @@ leerer Titel und kein Merker.
 ### Fehlerfälle
 - Jeder Schreib- und Löschversuch läuft in `try/catch`; ein Fehler wird
   verschluckt. Die Sitzung darf nie an der Mod scheitern (wie Stufe 1).
-- Ordner fehlt: wird beim ersten Schreiben angelegt, sofern `$.fs` das kann;
-  sonst wie jeder Schreibfehler.
+- `HOME` fehlt: der Melder schreibt nichts.
 
 ## Cockpit-Fenster
 
@@ -125,7 +127,7 @@ sortierte Zeilen.
 
 - Kaputte oder fremde Dateien (kein gültiges JSON, `v` nicht 1) werden
   übersprungen.
-- `updatedAt` älter als 24 h: ausgeblendet.
+- `status` `beendet` oder `updatedAt` älter als 24 h: ausgeblendet.
 - `status` `arbeitend` und `updatedAt` älter als 10 Min: **unklar** (grau),
   zählt oben nicht mit.
 - Zahlen oben: Arbeitend, Wartet auf dich, Bereit, Unteragenten aktiv (Summe
@@ -175,7 +177,7 @@ Stufe 1 (`modes.ts`, `/modus`, Regelblock) bleibt unverändert.
      `ExitPlanMode` ebenso mit „Plan“.
   3. wrap_up mit `ask` führt am Rundenende zu `wartet`, ohne `ask` zu `bereit`.
   4. Unteragenten-Zahl folgt `$.agent.list()`.
-  5. `session.end` löscht die Datei.
+  5. `session.end` schreibt `beendet`.
   6. Ein Schreibfehler lässt die Runde unberührt.
   7. `board.ts`: Zahlen, Sortierung, 10-Min- und 24-h-Grenze, kaputte Datei.
   8. Fenster wird auf `desktop` und `terminal` gezeichnet, leerer Zustand.
