@@ -13,6 +13,11 @@ export const register: Register = on => {
       name: 'modus',
       description: 'Agentenmodus setzen: begleitet, abwesend, vorbereiten',
     })
+    // a reload or resume keeps $.state but not the status line
+    try {
+      const id = toMode((await $.state.get(MODE_REF)).value)
+      if (id !== 'begleitet') $.ui.status(`Modus: ${MODES[id].label}`)
+    } catch {}
 
     return next(e)
   })
@@ -38,7 +43,7 @@ export const register: Register = on => {
       const rules = MODES[toMode((await $.state.get(MODE_REF)).value)].rules
       if (!rules) return base
 
-      return { sections: [...base.sections, { id: 'leitstand-modus', text: rules, scope: 'session' }] }
+      return { sections: [...base.sections, { id: 'leitstand:modus', text: rules, scope: 'session' }] }
     } catch {
       // the session must never fail because of this mod
       return base

@@ -55,7 +55,7 @@ test('abwesend appends its rules last, as a session section', async ($, on) => {
   await modus($, 'abwesend')
   const list = await sections($)
   expect(list[0].id).toBe('base')
-  expect(list.at(-1)).toEqual({ id: 'leitstand-modus', text: MODES.abwesend.rules, scope: 'session' })
+  expect(list.at(-1)).toEqual({ id: 'leitstand:modus', text: MODES.abwesend.rules, scope: 'session' })
 })
 
 test('vorbereiten appends its own rules', async ($, on) => {
@@ -74,4 +74,19 @@ test('back to begleitet removes the block', async ($, on) => {
   await modus($, 'abwesend')
   await modus($, 'begleitet')
   expect(await sections($)).toEqual([BASE])
+})
+
+test('a new start of the session restores the status line', async ($, on) => {
+  const shown: unknown[] = []
+  on('command.register', () => ({ value: { command: 'modus' } }))
+  on('ui.status', (_: unknown, e: unknown) => {
+    shown.push(e)
+    return { value: undefined }
+  })
+  on('session.start', (_: unknown, e: any) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await modus($, 'abwesend')
+  shown.length = 0
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(JSON.stringify(shown)).toContain('Modus: Abwesend')
 })

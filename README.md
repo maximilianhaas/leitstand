@@ -16,3 +16,5 @@ Installation (lokal):
 
     claude plugin marketplace add ~/Documents/Projects/leitstand
     claude plugin install leitstand@leitstand
+
+Hinweis: Der Modus gilt pro Sitzung. Nach einem Neustart der App kann er wieder auf „begleitet“ stehen; die Statuszeile zeigt immer den wirksamen Modus.

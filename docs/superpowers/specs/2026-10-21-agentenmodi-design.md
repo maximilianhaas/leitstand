@@ -77,7 +77,7 @@ leitstand/
   - ohne Namen: aktuellen Modus und die drei Möglichkeiten anzeigen.
   - unbekannter Name: Hinweis mit den gültigen Namen, nichts ändern.
 - **Regelblock** (`prompt.compose`): Ist der Modus nicht „begleitet“, wird ein
-  Abschnitt `leitstand-modus` mit `scope: 'session'` ans Ende angehängt.
+  Abschnitt `leitstand:modus` mit `scope: 'session'` ans Ende angehängt.
   Wirksam ab der nächsten Runde.
 - **Statuszeile** (`$.ui.status`): „Modus: Abwesend“ bzw. „Modus: Nur
   vorbereiten“; bei Begleitet leer.
@@ -88,7 +88,7 @@ Runde: `prompt.compose` liest den Modus → hängt den Regelblock an → Claude
 arbeitet nach den Regeln.
 
 ### Speicherung
-`$.state` gilt pro Sitzung und überlebt Neuladen der Mod. Fehlt ein Wert, gilt
+`$.state` gilt pro Sitzung und überlebt Neuladen der Mod. Nach Neustart der App und Fortsetzen der Sitzung ist das nicht garantiert; dann gilt still wieder „begleitet“ (sicherer Rückfall). Beim Start der Sitzung setzt die Mod die Statuszeile aus dem gespeicherten Modus neu. Fehlt ein Wert, gilt
 „begleitet“. Kein `$.store` (das wäre sitzungsübergreifend).
 
 ## Verankerung in der CLAUDE.md

@@ -20,3 +20,9 @@ test('rule texts', () => {
   expect(MODES.abwesend.rules).toContain('Wartet auf dein OK')
   expect(MODES.vorbereiten.rules).toContain('Keine Änderungen an Projektdateien')
 })
+
+test('every rule text keeps the safety limits', () => {
+  for (const id of ['abwesend', 'vorbereiten'] as const) {
+    expect(MODES[id].rules).toContain('Sicherheitsregeln und ausdrückliches OK für Unumkehrbares bleiben.')
+  }
+})

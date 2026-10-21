@@ -16,7 +16,7 @@
 
 - Modus-IDs exakt: `begleitet`, `abwesend`, `vorbereiten`. Standard ohne Wert: `begleitet`.
 - Anzeigenamen exakt: „Begleitet“, „Abwesend“, „Nur vorbereiten“.
-- Abschnitt-ID im System-Prompt: `leitstand-modus`, `scope: 'session'`, immer ans Ende.
+- Abschnitt-ID im System-Prompt: `leitstand:modus`, `scope: 'session'`, immer ans Ende.
 - Bei `begleitet` wird kein Abschnitt angehängt und die Statuszeile geleert (`$.ui.status(undefined)`).
 - Statuszeile sonst: `Modus: Abwesend` bzw. `Modus: Nur vorbereiten`.
 - Die Sitzung darf nie an der Mod scheitern: jeder Fehler in `prompt.compose` reicht `next(e)` unverändert durch.
@@ -106,14 +106,14 @@
 - Consumes: `MODE_REF` (Task 2), `toMode`, `MODES` (Task 1)
 
 - [ ] **Step 1: Failing tests** (Engine-Stellvertreter: `on('prompt.compose', () => ({ sections: [{ id: 'base', text: 'x', scope: 'shared' }] }))`; aufrufen mit `$.prompt.compose()`)
-  - Zustand `abwesend` → letzte Section `{ id: 'leitstand-modus', scope: 'session' }`, Text = `MODES.abwesend.rules`; `base` bleibt erste
+  - Zustand `abwesend` → letzte Section `{ id: 'leitstand:modus', scope: 'session' }`, Text = `MODES.abwesend.rules`; `base` bleibt erste
   - Zustand `vorbereiten` → Text = `MODES.vorbereiten.rules`
   - kein Zustand → genau 1 Section (`base`)
   - Zustand `'weg'` (direkt per `$.state.set`) → genau 1 Section
   - erst `abwesend`, dann `/modus begleitet` → nächster `compose` hat genau 1 Section
   - `$.state.get` wirft (Stellvertreter `on('state.get', () => { throw new Error('x') })`) → Ergebnis gleich dem von `next(e)`
 - [ ] **Step 2:** `"$C" plugin test .` → FAIL
-- [ ] **Step 3: Implementieren:** `on('prompt.compose', async ($, e, next) => ...)`: `const base = await next(e)`; in `try` Modus lesen, `toMode`, bei Regeltext `{ sections: [...base.sections, { id: 'leitstand-modus', text, scope: 'session' }] }`; sonst und im `catch` `base`.
+- [ ] **Step 3: Implementieren:** `on('prompt.compose', async ($, e, next) => ...)`: `const base = await next(e)`; in `try` Modus lesen, `toMode`, bei Regeltext `{ sections: [...base.sections, { id: 'leitstand:modus', text, scope: 'session' }] }`; sonst und im `catch` `base`.
 - [ ] **Step 4:** `"$C" plugin test .` → PASS
 - [ ] **Step 5:** `git commit -am "feat: Regelblock je Modus im System-Prompt"`
 
