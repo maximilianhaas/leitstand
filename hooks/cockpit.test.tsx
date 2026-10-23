@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 const NOW = Date.parse('2026-10-21T12:00:00Z')
 const DIR = '/home/max/.claude/leitstand'
+const SETTING = '/home/max/.claude/leitstand-anzeige.json'
 
 const PANE = {
   plugin: 'leitstand',
@@ -16,21 +17,25 @@ const file = (over: Record<string, unknown>) =>
     waitingFor: null, mode: 'begleitet', agents: 0, updatedAt: new Date(NOW).toISOString(), ...over,
   })
 
-type World = { files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean }
+type World = { setting?: string; noCommand?: boolean; files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean }
 
 // Nothing sits beneath the plugin: these hooks stand for the engine.
 async function start($: any, on: any, world: World = {}) {
   const clock = mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/home/max' })
   const opened: unknown[] = []
-  const state = { reads: [] as string[], active: 0, maxActive: 0, panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
-  on('fs.write', () => ({ value: undefined }))
+  const state = { status: [] as unknown[], writes: [] as { path: string; text: string }[], reads: [] as string[], active: 0, maxActive: 0, panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
+  on('fs.write', (_: unknown, e: any) => (state.writes.push(e), { value: undefined }))
   on('fs.list', () => {
     state.lists++
     if (world.listFails) throw new Error('no dir')
     return { value: Object.keys(world.files ?? {}).map(name => ({ name, kind: 'file', size: 1, mtimeMs: world.mtimes?.[name] ?? NOW })) }
   })
   on('fs.read', async (_: unknown, e: any) => {
+    if (e.path === SETTING) {
+      if (world.setting === undefined) throw new Error('no file')
+      return { value: world.setting }
+    }
     state.reads.push(e.path)
     state.maxActive = Math.max(state.maxActive, ++state.active)
     if (world.slowRead) await clock.sleep(6_000)
@@ -41,12 +46,12 @@ async function start($: any, on: any, world: World = {}) {
   on('session.id', () => ({ value: 's1' }))
   on('session.cwd', () => ({ value: '/p/leitstand' }))
   on('command.register', (_: unknown, e: any) => ({ value: { command: e.name } }))
-  on('ui.status', () => ({ value: undefined }))
+  on('ui.status', (_: unknown, e: unknown) => (state.status.push(e), { value: undefined }))
   on('ui.open', (_: unknown, e: unknown) => (opened.push(e), { value: { isPlaced: true } }))
   on('ui.panes', () => (state.paneReads++, { value: state.panes }))
   on('session.start', (_: unknown, e: any) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/p/leitstand', surface: 'desktop', isInteractive: true })
-  const reply = await $.command.run({ command: 'cockpit', args: '' })
+  const reply = world.noCommand ? undefined : await $.command.run({ command: 'cockpit', args: '' })
   return { clock, opened, state, reply }
 }
 
@@ -108,17 +113,14 @@ test('a session without a title says so', async ($, on) => {
   await ui.unmount()
 })
 
-test('a closed pane stops the reading', async ($, on) => {
+test('a closed pane with display aus stops reading the folder', async ($, on) => {
   const { clock, state } = await start($, on, { files: {} })
   await clock.advance(5_000)
   state.panes = []
   await clock.advance(5_000)
   const lists = state.lists
-  const paneReads = state.paneReads
   await clock.advance(15_000)
   expect(state.lists).toBe(lists)
-  // the timer itself is gone, not just skipping its work
-  expect(state.paneReads).toBe(paneReads)
 })
 
 test('W2: files older than 24 h are not read at all', async ($, on) => {
@@ -138,4 +140,87 @@ test('W2: a slow read never overlaps the next tick', async ($, on) => {
   await clock.advance(5_000)
   await clock.advance(5_000)
   expect(state.maxActive).toBe(1)
+})
+
+const run = ($: any, args: string) => $.command.run({ command: 'cockpit', args })
+const lastStatus = (state: { status: unknown[] }) => JSON.stringify(state.status.at(-1) ?? null)
+const counts = (state: { writes: { path: string; text: string }[] }) => state.writes
+
+const twoSessions = {
+  's1.json': file({ sessionId: 's1', status: 'arbeitend', title: 'Eigene' }),
+  's2.json': file({ sessionId: 's2', status: 'wartet', waitingFor: 'Plan', title: 'Login-Seite umbauen', project: 'titan' }),
+}
+
+test('/cockpit kompakt stores the setting and shows the counts', async ($, on) => {
+  const world: World = { files: twoSessions }
+  const { clock, state } = await start($, on, world)
+  const reply = await run($, 'kompakt')
+  expect(reply.text).toContain('kompakt')
+  expect(counts(state).find(w => w.path === SETTING)?.text).toBe(JSON.stringify({ anzeige: 'kompakt' }))
+  world.setting = JSON.stringify({ anzeige: 'kompakt' })
+  await clock.advance(5_000)
+  expect(lastStatus(state)).toContain('⏳ 1 warten · ⚙ 1 arbeiten · ✓ 0 bereit · 🤖 0')
+})
+
+test('a setting written by another session reaches this one', async ($, on) => {
+  const world: World = { files: twoSessions, noCommand: true }
+  const { clock, state } = await start($, on, world)
+  world.setting = JSON.stringify({ anzeige: 'kompakt' })
+  await clock.advance(5_000)
+  expect(lastStatus(state)).toContain('⏳ 1 warten')
+})
+
+test('the mode stays in the status line beside the counts', async ($, on) => {
+  const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'kompakt' }), noCommand: true }
+  const { clock, state } = await start($, on, world)
+  await ($ as any).command.run({ command: 'modus', args: 'abwesend' })
+  await clock.advance(5_000)
+  expect(lastStatus(state)).toContain('Modus: Abwesend · ⏳ 1 warten')
+})
+
+test('/cockpit aus clears the counts again', async ($, on) => {
+  const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'kompakt' }), noCommand: true }
+  const { clock, state } = await start($, on, world)
+  await clock.advance(5_000)
+  expect(lastStatus(state)).toContain('⏳')
+  await run($, 'aus')
+  world.setting = JSON.stringify({ anzeige: 'aus' })
+  await clock.advance(5_000)
+  expect(lastStatus(state)).not.toContain('⏳')
+})
+
+test('/cockpit with an unknown word explains the options', async ($, on) => {
+  await start($, on, { noCommand: true })
+  const reply = await run($, 'bunt')
+  for (const word of ['kompakt', 'detail', 'aus']) expect(reply.text).toContain(word)
+})
+
+const BAND = {
+  plugin: 'leitstand',
+  component: 'AbovePrompt',
+  props: { hasSurvey: false, isWorking: false, maxRows: 5, bodyColumns: 100 },
+} as const
+
+test('detail shows the waiting sessions above the prompt', async ($, on) => {
+  const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'detail' }), noCommand: true }
+  const { clock } = await start($, on, world)
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+  const all = (await texts(ui)).join('\n')
+  expect(all).toContain('⏳ Login-Seite umbauen · titan')
+  expect(all).not.toContain('Eigene')
+  await ui.unmount()
+})
+
+test('kompakt leaves the band to the engine', async ($, on) => {
+  on('ui.render', ($: any, e: any) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'kompakt' }), noCommand: true }
+  const { clock } = await start($, on, world)
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
+  expect((await texts(ui)).join('\n')).toBe('engine')
+  await ui.unmount()
 })

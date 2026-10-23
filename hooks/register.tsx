@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { HIDE_MS, ago, buildBoard } from './board'
+import { HIDE_MS, ago, buildBoard, compactLine } from './board'
 import type { Row } from './board'
 
 import { MODES, parseMode, toMode } from './modes'
@@ -18,6 +18,12 @@ const EMPTY = 'Noch keine Sitzung gemeldet. Sitzungen melden sich erst nach eine
 // raw texts of every session file, and when they were read
 const files = atom({ plugin: 'leitstand', key: 'files' } as const, [] as string[])
 const readAt = atom({ plugin: 'leitstand', key: 'readAt' } as const, 0)
+// kompakt, detail or aus: one setting for every session, kept in a file they all read
+const display = atom({ plugin: 'leitstand', key: 'display' } as const, 'aus')
+const DISPLAYS = ['kompakt', 'detail', 'aus']
+const settingPath = async ($: any) => `${await $.env.get('HOME')}/.claude/leitstand-anzeige.json`
+// the last status line this module showed, so a tick only sends a change
+let shown: string | undefined
 // the module's own: a reload drops it, session.start starts it again
 let tick: { cancel: () => void } | undefined
 // a tick that is still reading skips the next one, so an older read never lands last
@@ -27,15 +33,36 @@ const STATE_LABEL = { arbeitend: 'Arbeitet', bereit: 'Bereit', unklar: 'Unklar' 
 const label = (r: Row) => (r.state === 'wartet' ? `Wartet (${r.waitingFor ?? 'Rückfrage'})` : STATE_LABEL[r.state])
 const cut = (text: string, n: number) => (text.length > n ? `${text.slice(0, n - 1)}…` : text).padEnd(n)
 
-async function readFiles($: any): Promise<void> {
+async function readSetting($: any): Promise<string> {
+  try {
+    const value = JSON.parse(String(await $.fs.read(await settingPath($)))).anzeige
+    return DISPLAYS.includes(value) ? value : 'aus'
+  } catch {
+    return 'aus'
+  }
+}
+
+// the mode of this session and, unless the display is aus, the counts of all
+async function showStatus($: any, force = false): Promise<void> {
+  try {
+    const mode = toMode((await $.state.get(MODE_REF)).value)
+    const parts = mode === 'begleitet' ? [] : [`Modus: ${MODES[mode].label}`]
+    if ((await read($, display)) !== 'aus') parts.push(compactLine(buildBoard(await read($, files), await read($, readAt)).counts))
+    const text = parts.join(' · ') || undefined
+    if (force || text !== shown) $.ui.status(text)
+    shown = text
+  } catch {}
+}
+
+// one tick: the setting, then the folder while a pane or the display needs it
+async function readFiles($: any, known?: string): Promise<void> {
   if (busy) return
   busy = true
   try {
-    if (!(await $.ui.panes()).some((p: { id: string }) => p.id === PANE)) {
-      tick?.cancel()
-      tick = undefined
-      return
-    }
+    const setting = known ?? (await readSetting($))
+    await update($, display, () => setting)
+    const isOpen = (await $.ui.panes()).some((p: { id: string }) => p.id === PANE)
+    if (!isOpen && setting === 'aus') return void (await showStatus($))
     const dir = `${await $.env.get('HOME')}/.claude/leitstand`
     const now: number = await $.clock.now()
     const texts: string[] = []
@@ -50,6 +77,7 @@ async function readFiles($: any): Promise<void> {
     } catch {}
     await update($, files, () => texts)
     await update($, readAt, () => now)
+    await showStatus($)
   } catch {
   } finally {
     busy = false
@@ -71,24 +99,44 @@ export const register: Register = on => {
     })
     await $.command.register({ name: 'cockpit', description: 'Cockpit über alle Sitzungen öffnen' })
     // a reload or resume keeps $.state but not the status line
-    try {
-      const id = toMode((await $.state.get(MODE_REF)).value)
-      if (id !== 'begleitet') $.ui.status(`Modus: ${MODES[id].label}`)
-    } catch {}
+    await showStatus($, true)
 
     const started = await next(e)
     await sessionStarted($)
-    try {
-      if ((await $.ui.panes()).some(p => p.id === PANE)) startTick($)
-    } catch {}
+    // every session reads the shared setting, so a change anywhere reaches it
+    startTick($)
     return started
   })
 
-  on('command.run', { command: 'cockpit' }, async $ => {
+  on('command.run', { command: 'cockpit' }, async ($, e) => {
+    const word = e.args.trim().toLowerCase()
+    if (DISPLAYS.includes(word)) {
+      await $.fs.write(await settingPath($), JSON.stringify({ anzeige: word }))
+      startTick($)
+      await readFiles($, word)
+      return { text: `Anzeige: ${word}. Gilt in allen Sitzungen mit dem Plugin, spätestens nach 5 s.` }
+    }
+    if (word !== '') return { text: `Unbekannt: „${word}“. Möglich: /cockpit (Fenster), /cockpit kompakt, /cockpit detail, /cockpit aus.` }
     await $.ui.open({ id: PANE, title: 'Cockpit' })
     startTick($)
     await readFiles($)
     return { text: 'Cockpit geöffnet.' }
+  })
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey || (await read($, display)) !== 'detail') return next(e)
+    const { rows } = buildBoard(await read($, files), await read($, readAt))
+    const waiting = rows.filter(r => r.state === 'wartet').slice(0, Math.min(3, e.props.maxRows))
+    if (waiting.length === 0) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="column">
+        {waiting.map(r => (
+          <Text>{`⏳ ${r.title || '(noch ohne Nachricht)'} · ${r.project} · ${ago(r.ageMs)}`}</Text>
+        ))}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -165,7 +213,7 @@ export const register: Register = on => {
 
     await $.state.set(MODE_REF, id)
     await report($)
-    $.ui.status(id === 'begleitet' ? undefined : `Modus: ${MODES[id].label}`)
+    await showStatus($, true)
 
     return { text: `Modus: ${MODES[id].label}. Gilt ab deiner nächsten Nachricht.` }
   })

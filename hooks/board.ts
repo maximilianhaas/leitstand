@@ -70,3 +70,6 @@ export function ago(ms: number): string {
   if (ms < 3_600_000) return `vor ${Math.floor(ms / 60_000)} Min`
   return `vor ${Math.floor(ms / 3_600_000)} h`
 }
+
+export const compactLine = (c: Board['counts']) =>
+  `⏳ ${c.wartet} warten · ⚙ ${c.arbeitend} arbeiten · ✓ ${c.bereit} bereit · 🤖 ${c.agents}`

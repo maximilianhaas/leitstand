@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { SessionFile } from '../types'
-import { ago, buildBoard } from './board'
+import { ago, buildBoard, compactLine } from './board'
 
 const now = Date.parse('2026-10-21T12:00:00Z')
 const minAgo = (m: number) => new Date(now - m * 60_000).toISOString()
@@ -85,4 +85,8 @@ test('W1: unknown status or wrong field types never break the board', () => {
   expect(board.rows.length).toBe(1)
   expect(board.rows[0]).toMatchObject({ title: '', project: '', mode: '', agents: 2 })
   expect(board.counts.agents).toBe(2)
+})
+
+test('compactLine shows the four counts', () => {
+  expect(compactLine({ arbeitend: 3, wartet: 2, bereit: 7, agents: 1 })).toBe('⏳ 2 warten · ⚙ 3 arbeiten · ✓ 7 bereit · 🤖 1')
 })
