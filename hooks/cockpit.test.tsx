@@ -17,7 +17,7 @@ const file = (over: Record<string, unknown>) =>
     waitingFor: null, mode: 'begleitet', agents: 0, updatedAt: new Date(NOW).toISOString(), ...over,
   })
 
-type World = { setting?: string; noCommand?: boolean; files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean }
+type World = { failWrite?: boolean; setting?: string; noCommand?: boolean; files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean }
 
 // Nothing sits beneath the plugin: these hooks stand for the engine.
 async function start($: any, on: any, world: World = {}) {
@@ -25,7 +25,11 @@ async function start($: any, on: any, world: World = {}) {
   mock.env(on, { HOME: '/home/max' })
   const opened: unknown[] = []
   const state = { status: [] as unknown[], writes: [] as { path: string; text: string }[], reads: [] as string[], active: 0, maxActive: 0, panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
-  on('fs.write', (_: unknown, e: any) => (state.writes.push(e), { value: undefined }))
+  on('fs.write', (_: unknown, e: any) => {
+    if (world.failWrite && e.path === SETTING) throw new Error('read-only')
+    state.writes.push(e)
+    return { value: undefined }
+  })
   on('fs.list', () => {
     state.lists++
     if (world.listFails) throw new Error('no dir')
@@ -200,4 +204,21 @@ test('detail names the waiting sessions in the status line', async ($, on) => {
   const { clock, state } = await start($, on, world)
   await clock.advance(5_000)
   expect(lastStatus(state)).toContain('⏳ 1 warten: Login-Seite umbauen · ⚙ 1 arbeiten')
+})
+
+test('a setting that cannot be saved says so', async ($, on) => {
+  await start($, on, { noCommand: true, failWrite: true })
+  expect((await run($, 'kompakt')).text).toContain('nicht gespeichert')
+})
+
+test('kompakt keeps the session files out of the session state', async ($, on) => {
+  const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'kompakt' }), noCommand: true }
+  const { clock, state } = await start($, on, world)
+  state.panes = []
+  await clock.advance(5_000)
+  expect(lastStatus(state)).toContain('⏳ 1 warten')
+  // nothing was stored for a pane that is closed, so a drawing now has no rows
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await texts(ui)).join('\n')).toContain('Noch keine Sitzung gemeldet.')
+  await ui.unmount()
 })

@@ -19,10 +19,10 @@ const EMPTY = 'Noch keine Sitzung gemeldet. Sitzungen melden sich erst nach eine
 const files = atom({ plugin: 'leitstand', key: 'files' } as const, [] as string[])
 const readAt = atom({ plugin: 'leitstand', key: 'readAt' } as const, 0)
 // kompakt (counts), detail (counts and waiting titles) or aus: one setting for every session, kept in a file they all read
-const display = atom({ plugin: 'leitstand', key: 'display' } as const, 'aus')
 const DISPLAYS = ['kompakt', 'detail', 'aus']
 const settingPath = async ($: any) => `${await $.env.get('HOME')}/.claude/leitstand-anzeige.json`
-// the last status line this module showed, so a tick only sends a change
+// the counts part of the status line from the last tick, and the line last shown
+let line: string | undefined
 let shown: string | undefined
 // the module's own: a reload drops it, session.start starts it again
 let tick: { cancel: () => void } | undefined
@@ -46,14 +46,7 @@ async function readSetting($: any): Promise<string> {
 async function showStatus($: any, force = false): Promise<void> {
   try {
     const mode = toMode((await $.state.get(MODE_REF)).value)
-    const parts = mode === 'begleitet' ? [] : [`Modus: ${MODES[mode].label}`]
-    const shownAs = await read($, display)
-    if (shownAs !== 'aus') {
-      const { counts, rows } = buildBoard(await read($, files), await read($, readAt))
-      const waiting = rows.filter(r => r.state === 'wartet').map(r => r.title || '(ohne Titel)')
-      parts.push(compactLine(counts, shownAs === 'detail' ? waiting : undefined))
-    }
-    const text = parts.join(' · ') || undefined
+    const text = [mode === 'begleitet' ? undefined : `Modus: ${MODES[mode].label}`, line].filter(Boolean).join(' · ') || undefined
     if (force || text !== shown) $.ui.status(text)
     shown = text
   } catch {}
@@ -65,9 +58,11 @@ async function readFiles($: any, known?: string): Promise<void> {
   busy = true
   try {
     const setting = known ?? (await readSetting($))
-    await update($, display, () => setting)
     const isOpen = (await $.ui.panes()).some((p: { id: string }) => p.id === PANE)
-    if (!isOpen && setting === 'aus') return void (await showStatus($))
+    if (!isOpen && setting === 'aus') {
+      line = undefined
+      return void (await showStatus($))
+    }
     const dir = `${await $.env.get('HOME')}/.claude/leitstand`
     const now: number = await $.clock.now()
     const texts: string[] = []
@@ -80,8 +75,14 @@ async function readFiles($: any, known?: string): Promise<void> {
         } catch {}
       }
     } catch {}
-    await update($, files, () => texts)
-    await update($, readAt, () => now)
+    // only a drawing reads these: no state writes while the pane is closed
+    if (isOpen) {
+      await update($, files, () => texts)
+      await update($, readAt, () => now)
+    }
+    const { counts, rows } = buildBoard(texts, now)
+    const waiting = rows.filter(r => r.state === 'wartet').map(r => r.title || '(ohne Titel)')
+    line = setting === 'aus' ? undefined : compactLine(counts, setting === 'detail' ? waiting : undefined)
     await showStatus($)
   } catch {
   } finally {
@@ -116,7 +117,11 @@ export const register: Register = on => {
   on('command.run', { command: 'cockpit' }, async ($, e) => {
     const word = e.args.trim().toLowerCase()
     if (DISPLAYS.includes(word)) {
-      await $.fs.write(await settingPath($), JSON.stringify({ anzeige: word }))
+      try {
+        await $.fs.write(await settingPath($), JSON.stringify({ anzeige: word }))
+      } catch {
+        return { text: 'Die Einstellung konnte nicht gespeichert werden.' }
+      }
       startTick($)
       await readFiles($, word)
       return { text: `Anzeige: ${word}. Gilt in allen Sitzungen mit dem Plugin, spätestens nach 5 s.` }
