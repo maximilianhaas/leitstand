@@ -76,3 +76,13 @@ test('ago', () => {
   expect(ago(120_000)).toBe('vor 2 Min')
   expect(ago(3_600_000)).toBe('vor 1 h')
 })
+
+test('W1: unknown status or wrong field types never break the board', () => {
+  const board = buildBoard(
+    [file({ status: 'pausiert' as any }), file({ title: 5 as any, project: null as any, mode: {} as any, agents: '2' as any })],
+    now,
+  )
+  expect(board.rows.length).toBe(1)
+  expect(board.rows[0]).toMatchObject({ title: '', project: '', mode: '', agents: 2 })
+  expect(board.counts.agents).toBe(2)
+})

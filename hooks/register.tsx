@@ -1,11 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { ago, buildBoard } from './board'
+import { HIDE_MS, ago, buildBoard } from './board'
 import type { Row } from './board'
 
 import { MODES, parseMode, toMode } from './modes'
-import { flagAsk, report, setStatus, turnEnded, turnStarted } from './reporter'
+import { flagAsk, report, sessionEnded, sessionStarted, setStatus, turnEnded, turnStarted } from './reporter'
 
 // not exported: the engine refuses a $.state reference that leaves the module
 const MODE_REF = { plugin: 'leitstand', key: 'mode' } as const
@@ -20,12 +20,16 @@ const files = atom({ plugin: 'leitstand', key: 'files' } as const, [] as string[
 const readAt = atom({ plugin: 'leitstand', key: 'readAt' } as const, 0)
 // the module's own: a reload drops it, session.start starts it again
 let tick: { cancel: () => void } | undefined
+// a tick that is still reading skips the next one, so an older read never lands last
+let busy = false
 
 const STATE_LABEL = { arbeitend: 'Arbeitet', bereit: 'Bereit', unklar: 'Unklar' } as const
 const label = (r: Row) => (r.state === 'wartet' ? `Wartet (${r.waitingFor ?? 'Rückfrage'})` : STATE_LABEL[r.state])
 const cut = (text: string, n: number) => (text.length > n ? `${text.slice(0, n - 1)}…` : text).padEnd(n)
 
 async function readFiles($: any): Promise<void> {
+  if (busy) return
+  busy = true
   try {
     if (!(await $.ui.panes()).some((p: { id: string }) => p.id === PANE)) {
       tick?.cancel()
@@ -33,19 +37,23 @@ async function readFiles($: any): Promise<void> {
       return
     }
     const dir = `${await $.env.get('HOME')}/.claude/leitstand`
+    const now: number = await $.clock.now()
     const texts: string[] = []
     try {
       for (const entry of await $.fs.list(dir)) {
-        if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue
+        // the mod cannot delete: old files pile up, so skip them unread
+        if (entry.kind !== 'file' || !entry.name.endsWith('.json') || now - entry.mtimeMs > HIDE_MS) continue
         try {
           texts.push(String(await $.fs.read(`${dir}/${entry.name}`)))
         } catch {}
       }
     } catch {}
-    const now: number = await $.clock.now()
     await update($, files, () => texts)
     await update($, readAt, () => now)
-  } catch {}
+  } catch {
+  } finally {
+    busy = false
+  }
 }
 
 function startTick($: any): void {
@@ -69,7 +77,7 @@ export const register: Register = on => {
     } catch {}
 
     const started = await next(e)
-    await setStatus($, 'bereit')
+    await sessionStarted($)
     try {
       if ((await $.ui.panes()).some(p => p.id === PANE)) startTick($)
     } catch {}
@@ -142,7 +150,7 @@ export const register: Register = on => {
   })
 
   on('session.end', async ($, e, next) => {
-    await setStatus($, 'beendet', null, e.sessionId)
+    await sessionEnded($, e.sessionId, e.reason)
     return next(e)
   })
 

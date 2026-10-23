@@ -20,11 +20,14 @@ export type Board = {
 }
 
 const ORDER: RowState[] = ['wartet', 'arbeitend', 'bereit', 'unklar']
+const STATUSES = ['arbeitend', 'wartet', 'bereit', 'beendet']
+// a hand-edited or foreign file must never break the drawing
+const str = (value: unknown) => (typeof value === 'string' ? value : '')
 
 export function parseFile(text: string): SessionFile | null {
   try {
     const f = JSON.parse(text)
-    const ok = f?.v === 1 && typeof f.sessionId === 'string' && typeof f.status === 'string' && typeof f.updatedAt === 'string'
+    const ok = f?.v === 1 && typeof f.sessionId === 'string' && STATUSES.includes(f.status) && typeof f.updatedAt === 'string'
     return ok ? f : null
   } catch {
     return null
@@ -40,18 +43,19 @@ export function buildBoard(texts: string[], now: number): Board {
     const ageMs = now - Date.parse(f.updatedAt)
     if (f.status === 'beendet' || !(ageMs <= HIDE_MS)) continue
     const state: RowState = f.status === 'arbeitend' && ageMs > STALE_MS ? 'unklar' : f.status
+    const agents = Number(f.agents) || 0
     if (state !== 'unklar') {
       counts[state]++
-      counts.agents += f.agents || 0
+      counts.agents += agents
     }
     rows.push({
       sessionId: f.sessionId,
-      title: f.title ?? '',
-      project: f.project ?? '',
-      mode: f.mode ?? '',
-      agents: f.agents || 0,
+      title: str(f.title),
+      project: str(f.project),
+      mode: str(f.mode),
+      agents,
       state,
-      waitingFor: f.waitingFor ?? null,
+      waitingFor: f.waitingFor === 'Plan' ? 'Plan' : f.waitingFor === 'Rückfrage' ? 'Rückfrage' : null,
       ageMs,
     })
   }

@@ -16,21 +16,27 @@ const file = (over: Record<string, unknown>) =>
     waitingFor: null, mode: 'begleitet', agents: 0, updatedAt: new Date(NOW).toISOString(), ...over,
   })
 
-type World = { files?: Record<string, string>; listFails?: boolean }
+type World = { files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean }
 
 // Nothing sits beneath the plugin: these hooks stand for the engine.
 async function start($: any, on: any, world: World = {}) {
   const clock = mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/home/max' })
   const opened: unknown[] = []
-  const state = { panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
+  const state = { reads: [] as string[], active: 0, maxActive: 0, panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
   on('fs.write', () => ({ value: undefined }))
   on('fs.list', () => {
     state.lists++
     if (world.listFails) throw new Error('no dir')
-    return { value: Object.keys(world.files ?? {}).map(name => ({ name, kind: 'file', size: 1 })) }
+    return { value: Object.keys(world.files ?? {}).map(name => ({ name, kind: 'file', size: 1, mtimeMs: world.mtimes?.[name] ?? NOW })) }
   })
-  on('fs.read', (_: unknown, e: any) => ({ value: world.files?.[e.path.slice(DIR.length + 1)] ?? '' }))
+  on('fs.read', async (_: unknown, e: any) => {
+    state.reads.push(e.path)
+    state.maxActive = Math.max(state.maxActive, ++state.active)
+    if (world.slowRead) await clock.sleep(6_000)
+    state.active--
+    return { value: world.files?.[e.path.slice(DIR.length + 1)] ?? '' }
+  })
   on('agent.list', () => ({ value: [] }))
   on('session.id', () => ({ value: 's1' }))
   on('session.cwd', () => ({ value: '/p/leitstand' }))
@@ -113,4 +119,23 @@ test('a closed pane stops the reading', async ($, on) => {
   expect(state.lists).toBe(lists)
   // the timer itself is gone, not just skipping its work
   expect(state.paneReads).toBe(paneReads)
+})
+
+test('W2: files older than 24 h are not read at all', async ($, on) => {
+  const { state } = await start($, on, {
+    files: { 'alt.json': file({ sessionId: 'alt' }), 'neu.json': file({ sessionId: 'neu' }) },
+    mtimes: { 'alt.json': NOW - 25 * 3_600_000 },
+  })
+  expect(state.reads.some(p => p.endsWith('alt.json'))).toBe(false)
+  expect(state.reads.some(p => p.endsWith('neu.json'))).toBe(true)
+})
+
+test('W2: a slow read never overlaps the next tick', async ($, on) => {
+  const world: World = { files: { 'a.json': file({}) } }
+  const { clock, state } = await start($, on, world)
+  world.slowRead = true
+  await clock.advance(5_000)
+  await clock.advance(5_000)
+  await clock.advance(5_000)
+  expect(state.maxActive).toBe(1)
 })

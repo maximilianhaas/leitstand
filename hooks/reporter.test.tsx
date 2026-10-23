@@ -5,7 +5,7 @@ import { titleOf } from './reporter'
 
 const PATH = '/home/max/.claude/leitstand/s1.json'
 
-type Opts = { env?: Record<string, string>; agents?: unknown[]; failWrite?: boolean; tool?: () => unknown }
+type Opts = { world?: { id: string; cwd: string }; env?: Record<string, string>; agents?: unknown[]; failWrite?: boolean; tool?: () => unknown }
 
 // Nothing sits beneath the plugin: these hooks stand for the engine.
 async function start($: any, on: any, opts: Opts = {}) {
@@ -18,8 +18,9 @@ async function start($: any, on: any, opts: Opts = {}) {
     return { value: undefined }
   })
   on('agent.list', () => ({ value: opts.agents ?? [] }))
-  on('session.id', () => ({ value: 's1' }))
-  on('session.cwd', () => ({ value: '/p/leitstand' }))
+  const world = opts.world ?? { id: 's1', cwd: '/p/leitstand' }
+  on('session.id', () => ({ value: world.id }))
+  on('session.cwd', () => ({ value: world.cwd }))
   on('command.register', () => ({ value: { command: 'modus' } }))
   on('ui.status', () => ({ value: undefined }))
   on('session.start', (_: unknown, e: any) => ({ cwd: e.cwd }))
@@ -29,7 +30,7 @@ async function start($: any, on: any, opts: Opts = {}) {
   on('tool.call', () => opts.tool?.() ?? { result: {} })
   await $.session.start({ cwd: '/p/leitstand', surface: 'desktop', isInteractive: true })
   const last = () => JSON.parse(writes.filter(w => w.path === PATH).at(-1)?.text ?? 'null')
-  return { writes, last, clock }
+  return { writes, last, clock, world }
 }
 
 const turnStart = ($: any, text: string) => $.turn.start({ text, turnId: 't1' })
@@ -166,4 +167,33 @@ test('a question inside a subagent never sets wartet', async () => {
   const $ = { state: { set: async (_: unknown, v: unknown) => set.push(v), get: async () => ({}) } }
   await hooks['tool.call']!($, { tool: 'AskUserQuestion', agentId: 'a1' }, async () => ({}))
   expect(set).not.toContain('wartet')
+})
+
+test('W3: a subagent in its own worktree does not change the project', async ($, on) => {
+  const { last, world } = await start($, on)
+  await turnStart($, 'a')
+  world.cwd = '/p/leitstand/.claude/worktrees/agent-x'
+  await $.turn.start({ text: 'sub', turnId: 't2', agentId: 'a1' })
+  expect(last()).toMatchObject({ project: 'leitstand', cwd: '/p/leitstand' })
+})
+
+test('W4: after /clear the new session gets its own title and status', async ($, on) => {
+  const { writes, world } = await start($, on)
+  await turnStart($, 'Alt. x')
+  await $.session.end({ reason: 'clear', sessionId: 's1', resume: {} as any })
+  world.id = 's2'
+  await ($ as any).command.run({ command: 'modus', args: 'abwesend' })
+  const s2 = () => JSON.parse(writes.filter(w => w.path.endsWith('/s2.json')).at(-1)!.text)
+  expect(s2().status).toBe('bereit')
+  await turnStart($, 'Neu. y')
+  expect(s2()).toMatchObject({ title: 'Neu', status: 'arbeitend' })
+})
+
+test('W5: a reload keeps a waiting session waiting', async ($, on) => {
+  const { last } = await start($, on)
+  await turnStart($, 'a')
+  await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'r', ask: 'Passt?' })
+  await turnComplete($)
+  await $.session.start({ cwd: '/p/leitstand', surface: 'desktop', isInteractive: true })
+  expect(last()).toMatchObject({ status: 'wartet', waitingFor: 'Rückfrage' })
 })
