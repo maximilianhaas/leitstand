@@ -20,6 +20,6 @@ export type SessionFile = {
 
 declare module 'claude-code' {
   interface PluginState {
-    leitstand: { mode: StoredMode }
+    leitstand: { mode: StoredMode; status: Status; waitingFor: WaitingFor; title: string; pendingAsk: boolean }
   }
 }
