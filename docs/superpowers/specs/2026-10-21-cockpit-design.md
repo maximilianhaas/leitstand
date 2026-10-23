@@ -46,6 +46,14 @@ Max führt in dieser Sitzung aus: eine Nachricht, eine Rückfrage
 Schließen der Sitzung. Was nicht feuert, wird in dieser Spec gestrichen oder
 ersetzt; die Änderung bekommt Max zum OK. Danach wird die Test-Mod gelöscht.
 
+**Ergebnis (22./23.10.2026):** Alle Ereignisse feuern in der Desktop-App,
+getrennt nach Haupt- und Unteragent; `tools` enthielt `AskUserQuestion`,
+`ExitPlanMode`, `mcp__ccd_turn__wrap_up` (mit `ask`); `$.fs.write` nach
+`~/.claude/` geht; `session.end` kam beim Beenden der App (Grund `other`).
+`$.agent.list()` lieferte den Unteragenten mit `status`. Einziger Fund: der
+Text bei `turn.start` (und `prompt.submit`) trägt vorangestellte
+System-Hinweise, siehe `title`.
+
 ## Melder (läuft in jeder Sitzung)
 
 ### Datei
@@ -70,7 +78,10 @@ selbst an:
 
 - `title`: erster Satz der ersten Nachricht von Max, höchstens 60 Zeichen
   (mit „…“ gekürzt). Bis dahin leer. Grund: Die Mod-API kennt den
-  Sitzungstitel der App nicht.
+  Sitzungstitel der App nicht. Vorher werden Blöcke der Form `<tag>…</tag>`
+  entfernt: Die App stellt Max' Text System-Hinweise (`<system-reminder>`)
+  voran, und Hintergrund-Meldungen (`<task-notification>`) bestehen nur aus
+  einem solchen Block (Zähler-Test). Bleibt nichts übrig, gilt der Text als leer.
 - `project`: letzter Teil von `cwd`.
 - `status`: `arbeitend`, `wartet`, `bereit` oder `beendet`.
 - `waitingFor`: bei `wartet` `"Rückfrage"` oder `"Plan"`, sonst `null`.
