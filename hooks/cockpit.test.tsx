@@ -195,32 +195,9 @@ test('/cockpit with an unknown word explains the options', async ($, on) => {
   for (const word of ['kompakt', 'detail', 'aus']) expect(reply.text).toContain(word)
 })
 
-const BAND = {
-  plugin: 'leitstand',
-  component: 'AbovePrompt',
-  props: { hasSurvey: false, isWorking: false, maxRows: 5, bodyColumns: 100 },
-} as const
-
-test('detail shows the waiting sessions above the prompt', async ($, on) => {
+test('detail names the waiting sessions in the status line', async ($, on) => {
   const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'detail' }), noCommand: true }
-  const { clock } = await start($, on, world)
+  const { clock, state } = await start($, on, world)
   await clock.advance(5_000)
-  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
-  const all = (await texts(ui)).join('\n')
-  expect(all).toContain('⏳ Login-Seite umbauen · titan')
-  expect(all).not.toContain('Eigene')
-  await ui.unmount()
-})
-
-test('kompakt leaves the band to the engine', async ($, on) => {
-  on('ui.render', ($: any, e: any) => {
-    const { Text } = $.ui.resolve(e)
-    return <Text>engine</Text>
-  })
-  const world: World = { files: twoSessions, setting: JSON.stringify({ anzeige: 'kompakt' }), noCommand: true }
-  const { clock } = await start($, on, world)
-  await clock.advance(5_000)
-  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as any)
-  expect((await texts(ui)).join('\n')).toBe('engine')
-  await ui.unmount()
+  expect(lastStatus(state)).toContain('⏳ 1 warten: Login-Seite umbauen · ⚙ 1 arbeiten')
 })

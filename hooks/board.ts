@@ -71,5 +71,10 @@ export function ago(ms: number): string {
   return `vor ${Math.floor(ms / 3_600_000)} h`
 }
 
-export const compactLine = (c: Board['counts']) =>
-  `⏳ ${c.wartet} warten · ⚙ ${c.arbeitend} arbeiten · ✓ ${c.bereit} bereit · 🤖 ${c.agents}`
+// the status line is narrow: two short titles at most, the rest as +N
+export function compactLine(c: Board['counts'], waiting?: string[]): string {
+  const short = (t: string) => (t.length > 22 ? `${t.slice(0, 21)}…` : t)
+  const more = waiting && waiting.length > 2 ? ` +${waiting.length - 2}` : ''
+  const names = waiting?.length ? `: ${waiting.slice(0, 2).map(short).join(', ')}${more}` : ''
+  return `⏳ ${c.wartet} warten${names} · ⚙ ${c.arbeitend} arbeiten · ✓ ${c.bereit} bereit · 🤖 ${c.agents}`
+}

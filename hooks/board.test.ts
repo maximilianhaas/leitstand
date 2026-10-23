@@ -90,3 +90,10 @@ test('W1: unknown status or wrong field types never break the board', () => {
 test('compactLine shows the four counts', () => {
   expect(compactLine({ arbeitend: 3, wartet: 2, bereit: 7, agents: 1 })).toBe('⏳ 2 warten · ⚙ 3 arbeiten · ✓ 7 bereit · 🤖 1')
 })
+
+test('compactLine names up to two waiting sessions when asked', () => {
+  const c = { arbeitend: 0, wartet: 3, bereit: 0, agents: 0 }
+  expect(compactLine(c, ['Login-Seite umbauen', 'Ein sehr langer Titel einer Sitzung', 'Dritte'])).toBe(
+    '⏳ 3 warten: Login-Seite umbauen, Ein sehr langer Titel… +1 · ⚙ 0 arbeiten · ✓ 0 bereit · 🤖 0',
+  )
+})
