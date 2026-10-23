@@ -4,6 +4,6 @@
   "description": "Agentenmodi pro Sitzung",
   "owner": { "name": "Maximilian Haas" },
   "plugins": [
-    { "name": "leitstand", "description": "Agentenmodi pro Sitzung (/modus)", "source": "./", "category": "productivity" }
+    { "name": "leitstand", "description": "Agentenmodi (/modus) und Cockpit über alle Sitzungen (/cockpit)", "source": "./", "category": "productivity" }
   ]
 }
