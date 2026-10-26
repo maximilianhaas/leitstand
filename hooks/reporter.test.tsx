@@ -1,11 +1,11 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { register } from './register'
-import { titleOf } from './reporter'
+import { modelLabel, subagentsOf, titleOf, worktreeOf } from './reporter'
 
 const PATH = '/home/max/.claude/leitstand/s1.json'
 
-type Opts = { world?: { id: string; cwd: string }; env?: Record<string, string>; agents?: unknown[]; failWrite?: boolean; tool?: () => unknown }
+type Opts = { usage?: unknown; world?: { id: string; cwd: string }; env?: Record<string, string>; agents?: unknown[]; failWrite?: boolean; tool?: () => unknown }
 
 // Nothing sits beneath the plugin: these hooks stand for the engine.
 async function start($: any, on: any, opts: Opts = {}) {
@@ -18,6 +18,8 @@ async function start($: any, on: any, opts: Opts = {}) {
     return { value: undefined }
   })
   on('agent.list', () => ({ value: opts.agents ?? [] }))
+  if (opts.usage) on('session.usage', () => ({ value: opts.usage }))
+  on('agent.spawn', () => ({ agentId: 'a1', model: 'claude-haiku-5-5' }))
   const world = opts.world ?? { id: 's1', cwd: '/p/leitstand' }
   on('session.id', () => ({ value: world.id }))
   on('session.cwd', () => ({ value: world.cwd }))
@@ -196,4 +198,34 @@ test('W5: a reload keeps a waiting session waiting', async ($, on) => {
   await turnComplete($)
   await $.session.start({ cwd: '/p/leitstand', surface: 'desktop', isInteractive: true })
   expect(last()).toMatchObject({ status: 'wartet', waitingFor: 'Rückfrage' })
+})
+
+test('worktreeOf and modelLabel', () => {
+  expect(worktreeOf('/p/.claude/worktrees/fix-1/src')).toBe('fix-1')
+  expect(worktreeOf(undefined)).toBe('Hauptordner')
+  expect(modelLabel('claude-sonnet-5-5')).toBe('sonnet')
+  expect(modelLabel(undefined)).toBe('?')
+})
+
+test('subagentsOf marks the end once and drops old finished ones', () => {
+  const list = [
+    { id: 'a1', description: 'd', type: 'Explore', status: 'completed' },
+    { id: 'a2', description: 'd', type: 'Explore', status: 'running' },
+  ]
+  const meta = { a1: { model: 'haiku', worktree: 'w', startedAt: 0 }, a2: { model: 'sonnet', worktree: 'Hauptordner', startedAt: 5 } }
+  const first = subagentsOf(list, meta, 100)
+  expect(first.meta.a1!.endedAt).toBe(100)
+  expect(first.subagents.map(a => a.id)).toEqual(['a2', 'a1'])
+  const again = subagentsOf(list, first.meta, 200)
+  expect(again.meta).toBe(first.meta)
+  expect(subagentsOf(list, first.meta, 100 + 3_600_001).subagents.map(a => a.id)).toEqual(['a2'])
+})
+
+test('the file carries context, limits and spawned subagents', async ($, on) => {
+  const usage = { startedAt: 0, context: { window: 200_000, percent: 63 }, rateLimits: [{ kind: 'five_hour', percentUsed: 41.6 }] }
+  const agents = [{ id: 'a1', type: 'Explore', status: 'running', description: 'Suche' }]
+  const { last } = await start($, on, { usage, agents })
+  await $.agent.spawn({ prompt: 'arbeite in /p/.claude/worktrees/w1', description: 'Suche', subagentType: 'Explore' } as any)
+  expect(last()).toMatchObject({ context: 63, limits: [{ kind: 'five_hour', percent: 42 }] })
+  expect(last().subagents).toEqual([expect.objectContaining({ id: 'a1', model: 'haiku', worktree: 'w1', status: 'running' })])
 })

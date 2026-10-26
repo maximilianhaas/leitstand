@@ -97,3 +97,21 @@ test('compactLine names up to two waiting sessions when asked', () => {
     '⏳ 3 warten: Login-Seite umbauen, Ein sehr langer Titel… +1 · ⚙ 0 arbeiten · ✓ 0 bereit · 🤖 0',
   )
 })
+
+test('context, freshest limits and subagents of visible sessions', () => {
+  const sub = (id: string, status: string, startedAt: number) => ({ id, description: id, type: 'Explore', model: 'haiku', worktree: 'Hauptordner', status, startedAt })
+  const board = buildBoard(
+    [
+      file({ title: 'A', context: 78, limits: [{ kind: 'five_hour', percent: 40 }], updatedAt: minAgo(5), subagents: [sub('a1', 'completed', now - 9), sub('a2', 'running', now - 5)] }),
+      file({ title: 'B', limits: [{ kind: 'five_hour', percent: 42 }], subagents: [sub('b1', 'running', now - 1)] }),
+      file({ status: 'arbeitend', updatedAt: minAgo(11), subagents: [sub('c1', 'running', now)] }),
+      file({ subagents: 'kaputt' as any }),
+    ],
+    now,
+  )
+  expect(board.rows.find(r => r.title === 'A')?.context).toBe(78)
+  expect(board.limits).toEqual([{ kind: 'five_hour', percent: 42 }])
+  // unklar sessions are left out; running first, newest first
+  expect(board.subagents.map(a => a.id)).toEqual(['b1', 'a2', 'a1'])
+  expect(board.subagents[0]!.session).toBe('B')
+})

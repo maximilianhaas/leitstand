@@ -222,3 +222,18 @@ test('kompakt keeps the session files out of the session state', async ($, on) =
   expect((await texts(ui)).join('\n')).toContain('Noch keine Sitzung gemeldet.')
   await ui.unmount()
 })
+
+test('the pane shows context, limit and subagents', async ($, on) => {
+  const sub = { id: 'a1', description: 'Dateien suchen', type: 'Explore', model: 'haiku', worktree: 'w1', status: 'running', startedAt: NOW - 120_000 }
+  const { clock } = await start($, on, {
+    files: { 's2.json': file({ sessionId: 's2', title: 'Andere', context: 85, limits: [{ kind: 'five_hour', percent: 42 }], subagents: [sub] }) },
+  })
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const all = (await texts(ui)).join('\n')
+  expect(all).toContain('Nutzungslimit: 5 h 42 %')
+  expect(all).toContain('85 %')
+  expect(all).toContain('● läuft   Dateien suchen')
+  expect(all).toContain('haiku · Explore · w1 · 2 Min · Andere')
+  await ui.unmount()
+})

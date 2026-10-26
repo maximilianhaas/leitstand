@@ -28,7 +28,11 @@ Oben stehen vier Zahlen:
 - **Bereit**: Runde fertig, nichts offen.
 - **Unteragenten aktiv**: laufende Unteragenten aller sichtbaren Sitzungen.
 
-Darunter eine Zeile je Sitzung: Status, Titel (erster Satz deiner ersten Nachricht), Projekt, Modus, Unteragenten, letztes Lebenszeichen. Die eigene Sitzung trägt „(diese)“. Wartende stehen oben, die am längsten Wartende zuerst. „Unklar“ (grau) heißt: arbeitend gemeldet, aber seit 10 Minuten kein Lebenszeichen, etwa bei einem Rechte-Dialog der App, den die Mod nicht sieht. Beendete Sitzungen und alles, was älter als 24 Stunden ist, blendet das Cockpit aus.
+Darunter steht das Nutzungslimit des Kontos (z. B. `5 h 42 % · 7 Tage 18 %`, aus der zuletzt gemeldeten Sitzung; ohne Abo fehlt die Zeile).
+
+Dann eine Zeile je Sitzung: Status, Titel (erster Satz deiner ersten Nachricht), Projekt, Kontext (wie voll das Kontextfenster ist, ab 80 % gelb), Modus, Unteragenten, letztes Lebenszeichen. Die eigene Sitzung trägt „(diese)“. Wartende stehen oben, die am längsten Wartende zuerst. „Unklar“ (grau) heißt: arbeitend gemeldet, aber seit 10 Minuten kein Lebenszeichen, etwa bei einem Rechte-Dialog der App, den die Mod nicht sieht. Beendete Sitzungen und alles, was älter als 24 Stunden ist, blendet das Cockpit aus.
+
+Ganz unten stehen die **Unteragenten** aller sichtbaren Sitzungen: Status, Aufgabe, darunter Modell, Agententyp, Worktree (oder „Hauptordner“), Laufzeit und Sitzung. Laufende stehen oben. Fertige bleiben eine Stunde sichtbar, höchstens 15 Einträge. Unteragenten, die vor dem Laden des Plugins gestartet wurden, zeigen Modell „?“.
 
 ### Anzeige in der Statuszeile
 
