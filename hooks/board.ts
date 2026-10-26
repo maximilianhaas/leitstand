@@ -14,15 +14,14 @@ export type Row = {
   waitingFor: WaitingFor
   ageMs: number
   context?: number
+  // running first, newest first
+  subagents: Subagent[]
 }
-// a subagent with the session it runs in
-export type SubRow = Subagent & { session: string }
 export type Board = {
   counts: { arbeitend: number; wartet: number; bereit: number; agents: number }
   rows: Row[]
   // the account's windows, from the freshest file that has them
   limits: Limit[]
-  subagents: SubRow[]
 }
 
 const ORDER: RowState[] = ['wartet', 'arbeitend', 'bereit', 'unklar']
@@ -30,8 +29,7 @@ const STATUSES = ['arbeitend', 'wartet', 'bereit', 'beendet']
 // a hand-edited or foreign file must never break the drawing
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
 const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined)
-const DONE = ['completed', 'failed', 'killed']
-const MAX_SUBAGENTS = 15
+export const DONE = ['completed', 'failed', 'killed']
 
 export function parseFile(text: string): SessionFile | null {
   try {
@@ -48,7 +46,6 @@ export function buildBoard(texts: string[], now: number): Board {
   const rows: Row[] = []
   let limits: Limit[] = []
   let limitsAge = Infinity
-  const subagents: SubRow[] = []
   for (const text of texts) {
     const f = parseFile(text)
     if (!f) continue
@@ -70,22 +67,25 @@ export function buildBoard(texts: string[], now: number): Board {
       waitingFor: f.waitingFor === 'Plan' ? 'Plan' : f.waitingFor === 'Rückfrage' ? 'Rückfrage' : null,
       ageMs,
       context: num(f.context),
+      subagents: subagentsIn(f),
     })
     if (Array.isArray(f.limits) && f.limits.length && ageMs < limitsAge) {
       limits = f.limits.filter(l => typeof l?.kind === 'string' && num(l.percent) !== undefined)
       limitsAge = ageMs
     }
-    if (state === 'unklar' || !Array.isArray(f.subagents)) continue
-    for (const a of f.subagents) {
-      if (typeof a?.id !== 'string' || num(a.startedAt) === undefined) continue
-      subagents.push({ ...a, description: str(a.description), type: str(a.type), model: str(a.model), worktree: str(a.worktree), status: str(a.status), endedAt: num(a.endedAt), session: str(f.title) || str(f.project) })
-    }
   }
-  subagents.sort((a, b) => Number(DONE.includes(a.status)) - Number(DONE.includes(b.status)) || b.startedAt - a.startedAt)
   rows.sort((a, b) =>
     ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || (a.state === 'wartet' ? b.ageMs - a.ageMs : a.ageMs - b.ageMs),
   )
-  return { counts, rows, limits, subagents: subagents.slice(0, MAX_SUBAGENTS) }
+  return { counts, rows, limits }
+}
+
+function subagentsIn(f: SessionFile): Subagent[] {
+  if (!Array.isArray(f.subagents)) return []
+  return f.subagents
+    .filter(a => typeof a?.id === 'string' && num(a.startedAt) !== undefined)
+    .map(a => ({ ...a, description: str(a.description), type: str(a.type), model: str(a.model), worktree: str(a.worktree), status: str(a.status), endedAt: num(a.endedAt) }))
+    .sort((a, b) => Number(DONE.includes(a.status)) - Number(DONE.includes(b.status)) || b.startedAt - a.startedAt)
 }
 
 export const STATUS_DE: Record<string, string> = {
@@ -103,17 +103,11 @@ export function duration(ms: number): string {
   return s < 60 ? `${s} s` : `${Math.round(s / 60)} Min`
 }
 
-const WINDOW_DE: Record<string, string> = { five_hour: '5 h', seven_day: '7 Tage' }
-export function limitLine(limits: Limit[]): string {
-  return limits.map(l => `${WINDOW_DE[l.kind] ?? l.kind} ${l.percent} %`).join(' · ')
-}
-
 export function ago(ms: number): string {
   if (ms < 60_000) return `vor ${Math.floor(ms / 1000)} s`
   if (ms < 3_600_000) return `vor ${Math.floor(ms / 60_000)} Min`
   return `vor ${Math.floor(ms / 3_600_000)} h`
 }
-
 // the status line is narrow: two short titles at most, the rest as +N
 export function compactLine(c: Board['counts'], waiting?: string[]): string {
   const short = (t: string) => (t.length > 22 ? `${t.slice(0, 21)}…` : t)

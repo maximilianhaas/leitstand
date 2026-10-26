@@ -1,8 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { HIDE_MS, STATUS_DE, ago, buildBoard, compactLine, duration, limitLine } from './board'
-import type { Row } from './board'
+import { HIDE_MS, buildBoard, compactLine } from './board'
+import { cockpit } from './view'
 
 import { MODES, parseMode, toMode } from './modes'
 import { agentSpawned, flagAsk, report, sessionEnded, sessionStarted, setStatus, turnEnded, turnStarted } from './reporter'
@@ -14,7 +14,6 @@ const IDS = Object.keys(MODES).join(', ')
 
 const PANE = 'cockpit'
 const TICK_MS = 5_000
-const EMPTY = 'Noch keine Sitzung gemeldet. Sitzungen melden sich erst nach einem Neustart mit dem Plugin.'
 // raw texts of every session file, and when they were read
 const files = atom({ plugin: 'leitstand', key: 'files' } as const, [] as string[])
 const readAt = atom({ plugin: 'leitstand', key: 'readAt' } as const, 0)
@@ -29,11 +28,6 @@ let tick: { cancel: () => void } | undefined
 // a tick that is still reading skips the next one, so an older read never lands last
 let busy = false
 
-const STATE_LABEL = { arbeitend: 'Arbeitet', bereit: 'Bereit', unklar: 'Unklar' } as const
-const label = (r: Row) => (r.state === 'wartet' ? `Wartet (${r.waitingFor ?? 'Rückfrage'})` : STATE_LABEL[r.state])
-const CONTEXT_WARN = 80
-const DONE = ['completed', 'failed', 'killed']
-const cut = (text: string, n: number) => (text.length > n ? `${text.slice(0, n - 1)}…` : text).padEnd(n)
 
 async function readSetting($: any): Promise<string> {
   try {
@@ -136,52 +130,8 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
     const now = await read($, readAt)
-    const { counts, rows, limits, subagents } = buildBoard(await read($, files), now)
-    const self = await $.session.id()
-    const room = Math.max(1, (e.viewport?.rows ?? 24) - 5)
-    const line = (cells: string[]) => cells.join('  ')
-
-    return (
-      <Box flexDirection="column">
-        <Text>{`Arbeitend ${counts.arbeitend}   Wartet auf dich ${counts.wartet}   Bereit ${counts.bereit}   Unteragenten aktiv ${counts.agents}`}</Text>
-        {limits.length > 0 && <Text>{`Nutzungslimit: ${limitLine(limits)}`}</Text>}
-        {rows.length === 0 && <Text dimColor>{EMPTY}</Text>}
-        {rows.length > 0 && (
-          <Text dimColor>{line([cut('Status', 18), cut('Titel', 32), cut('Projekt', 14), cut('Kontext', 7), cut('Modus', 15), '🤖', 'zuletzt'])}</Text>
-        )}
-        {rows.slice(0, room).map(r => (
-          <Text dimColor={r.state === 'unklar'} color={r.context !== undefined && r.context >= CONTEXT_WARN ? 'yellow' : undefined}>
-            {line([
-              cut(label(r), 18),
-              cut(r.title || '(noch ohne Nachricht)', 32),
-              cut(r.project, 14),
-              cut(r.context === undefined ? '–' : `${r.context} %`, 7),
-              cut(MODES[r.mode as keyof typeof MODES]?.label ?? r.mode, 15),
-              String(r.agents).padStart(2),
-              ago(r.ageMs),
-            ]) + (r.sessionId === self ? '  (diese)' : '')}
-          </Text>
-        ))}
-        {subagents.length > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            <Text bold>Unteragenten</Text>
-            {subagents.map(a => {
-              const done = DONE.includes(a.status)
-              return (
-                <Box flexDirection="column">
-                  <Text dimColor={done} color={a.status === 'failed' ? 'red' : a.status === 'running' ? 'green' : undefined}>
-                    {`${done ? '○' : '●'} ${cut(STATUS_DE[a.status] ?? a.status, 8)}${a.description}`}
-                  </Text>
-                  <Text dimColor>{`   ${[a.model, a.type, a.worktree, duration((a.endedAt ?? now) - a.startedAt), a.session].filter(Boolean).join(' · ')}`}</Text>
-                </Box>
-              )
-            })}
-          </Box>
-        )}
-      </Box>
-    )
+    return cockpit($.ui.resolve(e), e.surface, buildBoard(await read($, files), now), await $.session.id(), now)
   })
 
   on('turn.start', async ($, e, next) => {

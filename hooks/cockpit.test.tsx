@@ -79,16 +79,18 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await clock.advance(5_000)
     const ui = await $.ui.mount({ ...PANE, surface })
     const all = await texts(ui)
-    expect(all.join('\n')).toContain('Wartet auf dich 1')
-    expect(all.join('\n')).toContain('Arbeitend 1')
-    const waiting = all.findIndex((t: string) => t.includes('Andere'))
-    const own = all.findIndex((t: string) => t.includes('Eigene'))
+    // tiles: the number, then its label
+    expect(all[all.indexOf('Wartet auf dich') - 1]).toBe('1')
+    expect(all[all.indexOf('Arbeitet') - 1]).toBe('1')
+    const waiting = all.indexOf('Andere')
+    const own = all.indexOf('Eigene')
     expect(waiting).toBeGreaterThan(-1)
     expect(own).toBeGreaterThan(waiting)
-    expect(all[waiting]).toContain('Wartet (Rückfrage)')
-    expect(all[own]).toContain('(diese)')
-    expect(all[own]).toContain('Abwesend')
-    expect(all[waiting]).not.toContain('(diese)')
+    expect(all).toContain('WARTET AUF DICH · 1')
+    expect(all[waiting + 1]).toBe('p · Begleitet · vor 5 s · wartet auf deine Antwort')
+    expect(all[own + 1]).toBe('diese')
+    expect(all[own + 2]).toContain('Abwesend')
+    expect(all.filter((t: string) => t === 'diese')).toHaveLength(1)
     await ui.unmount()
   })
 
@@ -96,7 +98,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const { clock } = await start($, on, { files: {} })
     await clock.advance(5_000)
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await texts(ui)).join('\n')).toContain('Noch keine Sitzung gemeldet. Sitzungen melden sich erst nach einem Neustart mit dem Plugin.')
+    expect(await texts(ui)).toContain('Noch keine Sitzung gemeldet.')
+    expect(await texts(ui)).toContain('Sitzungen melden sich erst nach einem Neustart mit dem Plugin.')
     await ui.unmount()
   })
 }
@@ -225,15 +228,24 @@ test('kompakt keeps the session files out of the session state', async ($, on) =
 
 test('the pane shows context, limit and subagents', async ($, on) => {
   const sub = { id: 'a1', description: 'Dateien suchen', type: 'Explore', model: 'haiku', worktree: 'w1', status: 'running', startedAt: NOW - 120_000 }
+  const done = { ...sub, id: 'a2', description: 'Alt', status: 'completed', endedAt: NOW - 60_000 }
   const { clock } = await start($, on, {
-    files: { 's2.json': file({ sessionId: 's2', title: 'Andere', context: 85, limits: [{ kind: 'five_hour', percent: 42 }], subagents: [sub] }) },
+    files: { 's2.json': file({ sessionId: 's2', title: 'Andere', context: 85, limits: [{ kind: 'five_hour', percent: 42 }], subagents: [sub, done] }) },
   })
   await clock.advance(5_000)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   const all = (await texts(ui)).join('\n')
-  expect(all).toContain('Nutzungslimit: 5 h 42 %')
-  expect(all).toContain('85 %')
-  expect(all).toContain('● läuft   Dateien suchen')
-  expect(all).toContain('haiku · Explore · w1 · 2 Min · Andere')
+  expect(all).toContain('Nutzungslimit\n5 h\n42 %')
+  expect(all).toContain('Kontext 85 %')
+  expect(all).toContain('Dateien suchen\nhaiku · Explore · w1 · 2 Min')
+  expect(all).toContain('+1 fertig')
+  await ui.unmount()
+})
+
+test('a terminal draws the bars as characters', async ($, on) => {
+  const { clock } = await start($, on, { files: { 's2.json': file({ sessionId: 's2', context: 92 }) } })
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await texts(ui)).toContain('▰▰▰▰▰▰▰▰▰▱')
   await ui.unmount()
 })

@@ -21,18 +21,13 @@ Installation (lokal):
 
 `/cockpit` öffnet neben dem Chat ein Fenster über alle Sitzungen. Es liest alle 5 Sekunden neu.
 
-Oben stehen vier Zahlen:
+Oben stehen vier Kacheln: **Wartet auf dich** (orange, sobald eine Sitzung auf dich wartet), **Arbeitet**, **Bereit** und **Unteragenten** (laufende Unteragenten aller sichtbaren Sitzungen). Darunter das Nutzungslimit des Kontos als Balken (`5 h`, `7 Tage`, aus der zuletzt gemeldeten Sitzung; ohne Abo fehlt die Zeile).
 
-- **Arbeitend**: Sitzungen, die gerade eine Runde laufen haben.
-- **Wartet auf dich**: Sitzungen mit offener Rückfrage (Frage-Box oder AskUserQuestion) oder Planfreigabe.
-- **Bereit**: Runde fertig, nichts offen.
-- **Unteragenten aktiv**: laufende Unteragenten aller sichtbaren Sitzungen.
+Die Sitzungen stehen als Karten in Gruppen: Wartet auf dich, Arbeitet, Bereit, Unklar. Jede Karte zeigt einen farbigen Statuspunkt, den Titel (erster Satz deiner ersten Nachricht), rechts den Kontext als Balken (grün, ab 80 % gelb, ab 90 % rot) und darunter Projekt, Modus, letztes Lebenszeichen und worauf sie wartet. Die eigene Sitzung trägt „diese“. In „Wartet auf dich“ steht die am längsten Wartende oben.
 
-Darunter steht das Nutzungslimit des Kontos (z. B. `5 h 42 % · 7 Tage 18 %`, aus der zuletzt gemeldeten Sitzung; ohne Abo fehlt die Zeile).
+Unter jeder Karte stehen ihre Unteragenten: Aufgabe, Modell, Agententyp, Worktree (oder „Hauptordner“) und Laufzeit. Fertige erscheinen nur als „+N fertig“ (eine Stunde lang), fehlgeschlagene bleiben mit ✕ sichtbar. Unteragenten, die vor dem Laden des Plugins gestartet wurden, zeigen Modell „?“.
 
-Dann eine Zeile je Sitzung: Status, Titel (erster Satz deiner ersten Nachricht), Projekt, Kontext (wie voll das Kontextfenster ist, ab 80 % gelb), Modus, Unteragenten, letztes Lebenszeichen. Die eigene Sitzung trägt „(diese)“. Wartende stehen oben, die am längsten Wartende zuerst. „Unklar“ (grau) heißt: arbeitend gemeldet, aber seit 10 Minuten kein Lebenszeichen, etwa bei einem Rechte-Dialog der App, den die Mod nicht sieht. Beendete Sitzungen und alles, was älter als 24 Stunden ist, blendet das Cockpit aus.
-
-Ganz unten stehen die **Unteragenten** aller sichtbaren Sitzungen: Status, Aufgabe, darunter Modell, Agententyp, Worktree (oder „Hauptordner“), Laufzeit und Sitzung. Laufende stehen oben. Fertige bleiben eine Stunde sichtbar, höchstens 15 Einträge. Unteragenten, die vor dem Laden des Plugins gestartet wurden, zeigen Modell „?“.
+„Unklar“ heißt: arbeitend gemeldet, aber seit 10 Minuten kein Lebenszeichen, etwa bei einem Rechte-Dialog der App, den die Mod nicht sieht. Beendete Sitzungen und alles, was älter als 24 Stunden ist, blendet das Cockpit aus. Im Terminal sind die Balken aus Zeichen (▰▱).
 
 ### Anzeige in der Statuszeile
 

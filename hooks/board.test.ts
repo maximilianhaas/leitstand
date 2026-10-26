@@ -111,7 +111,9 @@ test('context, freshest limits and subagents of visible sessions', () => {
   )
   expect(board.rows.find(r => r.title === 'A')?.context).toBe(78)
   expect(board.limits).toEqual([{ kind: 'five_hour', percent: 42 }])
-  // unklar sessions are left out; running first, newest first
-  expect(board.subagents.map(a => a.id)).toEqual(['b1', 'a2', 'a1'])
-  expect(board.subagents[0]!.session).toBe('B')
+  // per session: running first, newest first; a broken list is empty
+  const of = (t: string) => board.rows.find(r => r.title === t)!.subagents.map(a => a.id)
+  expect(of('A')).toEqual(['a2', 'a1'])
+  expect(of('B')).toEqual(['b1'])
+  expect(board.rows.filter(r => r.title === 'Titel').map(r => r.subagents.length)).toEqual([0, 1])
 })
