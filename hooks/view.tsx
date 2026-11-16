@@ -68,18 +68,23 @@ function subagent(E: any, a: Subagent, now: number) {
   )
 }
 
-function card(E: any, r: Row, self: string, now: number) {
+function card(E: any, r: Row, self: string, now: number, jump?: (id: string) => void) {
   const mode = MODES[r.mode as keyof typeof MODES]?.label ?? r.mode
   const meta = [r.project, mode, ago(r.ageMs), r.waitingFor ? WAIT_DE[r.waitingFor] : undefined].filter(Boolean).join(' · ')
   // finished ones only as a count, failed ones stay visible
   const shown = r.subagents.filter(a => !DONE.includes(a.status) || a.status === 'failed')
   const finished = r.subagents.length - shown.length
+  const title = <E.Text weight="semibold" dimColor={r.state === 'unklar'} wrap="truncate-end">{r.title || '(noch ohne Nachricht)'}</E.Text>
   return (
     <E.Box flexDirection="column" borderStyle="round" borderColor={r.state === 'wartet' ? 'warning' : 'subtle'} paddingX={1} gap="xs">
       <E.Box flexDirection="row" justifyContent="space-between" alignItems="center" gap="sm">
         <E.Box flexDirection="row" gap="xs" flexShrink={1}>
           <E.Text color={DOT[r.state]}>●</E.Text>
-          <E.Text weight="semibold" dimColor={r.state === 'unklar'} wrap="truncate-end">{r.title || '(noch ohne Nachricht)'}</E.Text>
+          {r.appId && jump && r.sessionId !== self ? (
+            <E.Button key={r.sessionId} plain onPress={() => jump(r.appId!)}>{title}</E.Button>
+          ) : (
+            title
+          )}
           {r.sessionId === self && <E.Text size="caption" color="claude">diese</E.Text>}
         </E.Box>
         {r.context !== undefined && (
@@ -96,8 +101,8 @@ function card(E: any, r: Row, self: string, now: number) {
   )
 }
 
-export function cockpit(elements: any, surface: string, board: Board, self: string, now: number) {
-  const E = { Box: elements.Box, Text: elements.Text, Svg: elements.Svg, svg: surface !== 'terminal' }
+export function cockpit(elements: any, surface: string, board: Board, self: string, now: number, jump?: (id: string) => void) {
+  const E = { Box: elements.Box, Text: elements.Text, Svg: elements.Svg, Button: elements.Button, svg: surface !== 'terminal' }
   const { counts, rows } = board
   return (
     <E.Box flexDirection="column" gap="md">
@@ -117,7 +122,7 @@ export function cockpit(elements: any, surface: string, board: Board, self: stri
       {GROUPS.filter(([state]) => rows.some(r => r.state === state)).map(([state, title]) => (
         <E.Box flexDirection="column" gap="sm">
           <E.Text size="caption" weight="semibold" dimColor>{`${title.toUpperCase()} · ${rows.filter(r => r.state === state).length}`}</E.Text>
-          {rows.filter(r => r.state === state).map(r => card(E, r, self, now))}
+          {rows.filter(r => r.state === state).map(r => card(E, r, self, now, jump))}
         </E.Box>
       ))}
     </E.Box>

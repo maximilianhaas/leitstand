@@ -36,11 +36,14 @@ export type Subagent = {
   endedAt?: number
 }
 
+// the desktop app's own record of a session: the title in its sidebar, its local_ id
+export type AppName = { title: string; id: string }
+
 // what agent.spawn knows and agent.list does not
 export type AgentMeta = { model: string; worktree: string; startedAt: number; endedAt?: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    leitstand: { mode: StoredMode; status: Status; waitingFor: WaitingFor; title: string; pendingAsk: boolean; files: string[]; readAt: number; cwd: string; agentMeta: Record<string, AgentMeta> }
+    leitstand: { mode: StoredMode; status: Status; waitingFor: WaitingFor; title: string; pendingAsk: boolean; files: string[]; readAt: number; cwd: string; agentMeta: Record<string, AgentMeta>; names: Record<string, AppName> }
   }
 }

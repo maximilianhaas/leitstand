@@ -1,4 +1,4 @@
-import type { Limit, SessionFile, Subagent, WaitingFor } from '../types'
+import type { AppName, Limit, SessionFile, Subagent, WaitingFor } from '../types'
 
 export const STALE_MS = 600_000
 export const HIDE_MS = 86_400_000
@@ -7,6 +7,8 @@ export type RowState = 'wartet' | 'arbeitend' | 'bereit' | 'unklar'
 export type Row = {
   sessionId: string
   title: string
+  // the desktop app's local_ id, to jump there; absent outside the app
+  appId?: string
   project: string
   mode: string
   agents: number
@@ -41,7 +43,7 @@ export function parseFile(text: string): SessionFile | null {
   }
 }
 
-export function buildBoard(texts: string[], now: number): Board {
+export function buildBoard(texts: string[], now: number, names: Record<string, AppName> = {}): Board {
   const counts = { arbeitend: 0, wartet: 0, bereit: 0, agents: 0 }
   const rows: Row[] = []
   let limits: Limit[] = []
@@ -59,7 +61,9 @@ export function buildBoard(texts: string[], now: number): Board {
     }
     rows.push({
       sessionId: f.sessionId,
-      title: str(f.title),
+      // the sidebar's title where the app has one, else the first message
+      title: str(names[f.sessionId]?.title) || str(f.title),
+      appId: names[f.sessionId]?.id,
       project: str(f.project),
       mode: str(f.mode),
       agents,

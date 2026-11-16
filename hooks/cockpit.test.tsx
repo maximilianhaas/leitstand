@@ -3,6 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 const NOW = Date.parse('2026-10-21T12:00:00Z')
 const DIR = '/home/max/.claude/leitstand'
 const SETTING = '/home/max/.claude/leitstand-anzeige.json'
+const APP = '/home/max/Library/Application Support/Claude/claude-code-sessions'
 
 const PANE = {
   plugin: 'leitstand',
@@ -17,25 +18,29 @@ const file = (over: Record<string, unknown>) =>
     waitingFor: null, mode: 'begleitet', agents: 0, updatedAt: new Date(NOW).toISOString(), ...over,
   })
 
-type World = { failWrite?: boolean; setting?: string; noCommand?: boolean; files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean }
+type World = { failWrite?: boolean; setting?: string; noCommand?: boolean; files?: Record<string, string>; listFails?: boolean; mtimes?: Record<string, number>; slowRead?: boolean; app?: Record<string, string> }
 
 // Nothing sits beneath the plugin: these hooks stand for the engine.
 async function start($: any, on: any, world: World = {}) {
   const clock = mock.clock(on, { now: NOW })
   mock.env(on, { HOME: '/home/max' })
   const opened: unknown[] = []
-  const state = { status: [] as unknown[], writes: [] as { path: string; text: string }[], reads: [] as string[], active: 0, maxActive: 0, panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
+  const state = { runs: [] as string[][], status: [] as unknown[], writes: [] as { path: string; text: string }[], reads: [] as string[], active: 0, maxActive: 0, panes: [{ id: 'cockpit', title: 'Cockpit', isShown: true, isFocused: false, isPlaced: true }], lists: 0, paneReads: 0 }
   on('fs.write', (_: unknown, e: any) => {
     if (world.failWrite && e.path === SETTING) throw new Error('read-only')
     state.writes.push(e)
     return { value: undefined }
   })
-  on('fs.list', () => {
+  on('fs.list', (_: unknown, e: any) => {
+    if (e.path === APP) return { value: world.app ? [{ name: 'acc', kind: 'dir', size: 0, mtimeMs: NOW }] : [] }
+    if (e.path === `${APP}/acc`) return { value: [{ name: 'org', kind: 'dir', size: 0, mtimeMs: NOW }] }
+    if (e.path === `${APP}/acc/org`) return { value: Object.keys(world.app ?? {}).map(name => ({ name, kind: 'file', size: 1, mtimeMs: NOW })) }
     state.lists++
     if (world.listFails) throw new Error('no dir')
     return { value: Object.keys(world.files ?? {}).map(name => ({ name, kind: 'file', size: 1, mtimeMs: world.mtimes?.[name] ?? NOW })) }
   })
   on('fs.read', async (_: unknown, e: any) => {
+    if (e.path.startsWith(`${APP}/`)) return { value: world.app?.[e.path.split('/').pop()] ?? '' }
     if (e.path === SETTING) {
       if (world.setting === undefined) throw new Error('no file')
       return { value: world.setting }
@@ -46,6 +51,7 @@ async function start($: any, on: any, world: World = {}) {
     state.active--
     return { value: world.files?.[e.path.slice(DIR.length + 1)] ?? '' }
   })
+  on('process.run', (_: unknown, e: any) => (state.runs.push([...e.argv]), { value: { exitCode: 0, stdout: '', stderr: '' } }))
   on('agent.list', () => ({ value: [] }))
   on('session.id', () => ({ value: 's1' }))
   on('session.cwd', () => ({ value: '/p/leitstand' }))
@@ -247,5 +253,25 @@ test('a terminal draws the bars as characters', async ($, on) => {
   await clock.advance(5_000)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await texts(ui)).toContain('▰▰▰▰▰▰▰▰▰▱')
+  await ui.unmount()
+})
+
+test('the app title is shown, and a press jumps to that session', async ($, on) => {
+  const { clock, state } = await start($, on, {
+    files: { 's2.json': file({ sessionId: 's2', title: 'erste Nachricht' }), 's1.json': file({ sessionId: 's1', title: 'Eigene' }) },
+    app: {
+      'local_b.json': JSON.stringify({ sessionId: 'local_b', cliSessionId: 's2', title: 'Titel aus der Seitenleiste' }),
+      'local_a.json': JSON.stringify({ sessionId: 'local_a', cliSessionId: 's1', title: 'Diese Sitzung' }),
+    },
+  })
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const all = await texts(ui)
+  expect(all).toContain('Titel aus der Seitenleiste')
+  expect(all).not.toContain('erste Nachricht')
+  // the own session has nowhere to jump: no button
+  expect(await ui.find({ key: 's1' })).toBeUndefined()
+  await ui.press({ key: 's2' })
+  expect(state.runs).toEqual([['open', 'claude://code/continue?session=local_b']])
   await ui.unmount()
 })

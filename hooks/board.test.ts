@@ -117,3 +117,14 @@ test('context, freshest limits and subagents of visible sessions', () => {
   expect(of('B')).toEqual(['b1'])
   expect(board.rows.filter(r => r.title === 'Titel').map(r => r.subagents.length)).toEqual([0, 1])
 })
+
+test('the desktop app title wins and carries its local_ id', () => {
+  const a = file({ sessionId: 'cli-a', title: 'erste Nachricht' })
+  const b = file({ sessionId: 'cli-b', title: 'ohne App' })
+  const { rows } = buildBoard([a, b], now, { 'cli-a': { title: 'Titel in der Seitenleiste', id: 'local_1' } })
+  const byId = Object.fromEntries(rows.map(r => [r.sessionId, r]))
+  expect(byId['cli-a']?.title).toBe('Titel in der Seitenleiste')
+  expect(byId['cli-a']?.appId).toBe('local_1')
+  expect(byId['cli-b']?.title).toBe('ohne App')
+  expect(byId['cli-b']?.appId).toBeUndefined()
+})

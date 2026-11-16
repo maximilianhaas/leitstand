@@ -1,5 +1,6 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
+import type { AppName } from '../types'
 
 import { HIDE_MS, buildBoard, compactLine } from './board'
 import { cockpit } from './view'
@@ -17,6 +18,12 @@ const TICK_MS = 5_000
 // raw texts of every session file, and when they were read
 const files = atom({ plugin: 'leitstand', key: 'files' } as const, [] as string[])
 const readAt = atom({ plugin: 'leitstand', key: 'readAt' } as const, 0)
+// the desktop app's titles and local_ ids, by the CLI's session id
+const names = atom({ plugin: 'leitstand', key: 'names' } as const, {} as Record<string, AppName>)
+// <account>/<org>/local_*.json, one per session the app knows
+const APP_DIR = 'Library/Application Support/Claude/claude-code-sessions'
+// an app file read once per change: about 50 a day, every 5 s otherwise
+const appCache = new Map<string, { mtimeMs: number; cli?: string; name?: AppName }>()
 // kompakt (counts), detail (counts and waiting titles) or aus: one setting for every session, kept in a file they all read
 const DISPLAYS = ['kompakt', 'detail', 'aus']
 const settingPath = async ($: any) => `${await $.env.get('HOME')}/.claude/leitstand-anzeige.json`
@@ -36,6 +43,43 @@ async function readSetting($: any): Promise<string> {
   } catch {
     return 'aus'
   }
+}
+
+// outside the desktop app the folder is missing: no names, titles as before
+async function readNames($: any, home: string, now: number): Promise<Record<string, AppName>> {
+  const out: Record<string, AppName> = {}
+  const dirs = async (path: string) => {
+    try {
+      return (await $.fs.list(path)).filter((e: any) => e.kind === 'dir').map((e: any) => `${path}/${e.name}`)
+    } catch {
+      return []
+    }
+  }
+  for (const account of await dirs(`${home}/${APP_DIR}`)) {
+    for (const org of await dirs(account)) {
+      let entries: any[] = []
+      try {
+        entries = await $.fs.list(org)
+      } catch {}
+      for (const entry of entries) {
+        if (entry.kind !== 'file' || !entry.name.startsWith('local_') || now - entry.mtimeMs > HIDE_MS) continue
+        const path = `${org}/${entry.name}`
+        let hit = appCache.get(path)
+        if (hit?.mtimeMs !== entry.mtimeMs) {
+          hit = { mtimeMs: entry.mtimeMs }
+          try {
+            const d = JSON.parse(String(await $.fs.read(path)))
+            if (typeof d.cliSessionId === 'string' && typeof d.title === 'string' && typeof d.sessionId === 'string') {
+              hit = { mtimeMs: entry.mtimeMs, cli: d.cliSessionId, name: { title: d.title, id: d.sessionId } }
+            }
+          } catch {}
+          appCache.set(path, hit)
+        }
+        if (hit?.cli && hit.name) out[hit.cli] = hit.name
+      }
+    }
+  }
+  return out
 }
 
 // the mode of this session and, unless the display is aus, the counts of all
@@ -59,7 +103,8 @@ async function readFiles($: any, known?: string): Promise<void> {
       line = undefined
       return void (await showStatus($))
     }
-    const dir = `${await $.env.get('HOME')}/.claude/leitstand`
+    const home = await $.env.get('HOME')
+    const dir = `${home}/.claude/leitstand`
     const now: number = await $.clock.now()
     const texts: string[] = []
     try {
@@ -71,12 +116,14 @@ async function readFiles($: any, known?: string): Promise<void> {
         } catch {}
       }
     } catch {}
+    const appNames = await readNames($, home, now)
     // only a drawing reads these: no state writes while the pane is closed
     if (isOpen) {
       await update($, files, () => texts)
       await update($, readAt, () => now)
+      await update($, names, () => appNames)
     }
-    const { counts, rows } = buildBoard(texts, now)
+    const { counts, rows } = buildBoard(texts, now, appNames)
     const waiting = rows.filter(r => r.state === 'wartet').map(r => r.title || '(ohne Titel)')
     line = setting === 'aus' ? undefined : compactLine(counts, setting === 'detail' ? waiting : undefined)
     await showStatus($)
@@ -131,7 +178,9 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const now = await read($, readAt)
-    return cockpit($.ui.resolve(e), e.surface, buildBoard(await read($, files), now), await $.session.id(), now)
+    // the app opens its own session by this link, as its Dock menu does
+    const jump = (id: string) => void $.process.run(['open', `claude://code/continue?session=${encodeURIComponent(id)}`]).catch(() => {})
+    return cockpit($.ui.resolve(e), e.surface, buildBoard(await read($, files), now, await read($, names)), await $.session.id(), now, jump)
   })
 
   on('turn.start', async ($, e, next) => {
