@@ -180,7 +180,13 @@ export const register: Register = on => {
     const now = await read($, readAt)
     // the app opens its own session by this link, as its Dock menu does
     const jump = (id: string) => void $.process.run(['open', `claude://code/continue?session=${encodeURIComponent(id)}`]).catch(() => {})
-    return cockpit($.ui.resolve(e), e.surface, buildBoard(await read($, files), now, await read($, names)), await $.session.id(), now, jump)
+    const setMode = (id: ModeId) =>
+      void (async () => {
+        await $.state.set(MODE_REF, id)
+        await report($)
+        await showStatus($, true)
+      })().catch(() => {})
+    return cockpit($.ui.resolve(e), e.surface, buildBoard(await read($, files), now, await read($, names)), await $.session.id(), now, jump, setMode)
   })
 
   on('turn.start', async ($, e, next) => {

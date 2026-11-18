@@ -281,3 +281,13 @@ test('the app title is shown, and a press jumps to that session', async ($, on) 
   expect(state.runs).toEqual([['open', 'claude://code/continue?session=local_b']])
   await ui.unmount()
 })
+
+test('the own card carries mode buttons, a press sets the mode', async ($, on) => {
+  const { clock } = await start($, on, { files: { 's1.json': file({ sessionId: 's1', title: 'Eigene' }), 's2.json': file({ sessionId: 's2' }) } })
+  await clock.advance(5_000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ key: 'modus-abwesend' })).toBeDefined()
+  await ui.press({ key: 'modus-abwesend' })
+  await ui.unmount()
+  expect((await ($ as any).command.run({ command: 'modus', args: '' })).text).toContain('Abwesend')
+})

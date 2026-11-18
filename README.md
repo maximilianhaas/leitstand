@@ -23,7 +23,7 @@ Installation (lokal):
 
 Oben stehen vier Kacheln: **Wartet auf dich** (orange, sobald eine Sitzung auf dich wartet), **Arbeitet**, **Bereit** und **Unteragenten** (laufende Unteragenten aller sichtbaren Sitzungen). Darunter das Nutzungslimit des Kontos als Balken (`5 h`, `7 Tage`, aus der zuletzt gemeldeten Sitzung; ohne Abo fehlt die Zeile).
 
-Die Sitzungen stehen als Karten in Gruppen: Wartet auf dich, Arbeitet, Bereit, Unklar. Jede Karte zeigt einen farbigen Statuspunkt, den Titel (erster Satz deiner ersten Nachricht), rechts den Kontext als Balken (grün, ab 80 % gelb, ab 90 % rot) und darunter Projekt, Modus, letztes Lebenszeichen und worauf sie wartet. Die eigene Sitzung trägt „diese“. In „Wartet auf dich“ steht die am längsten Wartende oben.
+Die Sitzungen stehen als Karten in Gruppen: Wartet auf dich, Arbeitet, Bereit, Unklar. Jede Karte zeigt einen farbigen Statuspunkt, den Titel (erster Satz deiner ersten Nachricht), rechts den Kontext als Balken (grün, ab 80 % gelb, ab 90 % rot) und darunter Projekt, Modus, letztes Lebenszeichen und worauf sie wartet. Die eigene Sitzung trägt „diese“ und darunter drei Knöpfe Begleitet · Abwesend · Nur vorbereiten: ein Klick setzt den Modus dieser Sitzung, der aktive Knopf ist hervorgehoben. In „Wartet auf dich“ steht die am längsten Wartende oben.
 
 Unter jeder Karte stehen ihre Unteragenten: Aufgabe, Modell, Agententyp, Worktree (oder „Hauptordner“) und Laufzeit. Fertige erscheinen nur als „+N fertig“ (eine Stunde lang), fehlgeschlagene bleiben mit ✕ sichtbar. Unteragenten, die vor dem Laden des Plugins gestartet wurden, zeigen Modell „?“.
 

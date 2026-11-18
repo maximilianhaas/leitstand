@@ -1,6 +1,6 @@
 {
   "name": "leitstand",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Agentenmodi (/modus) und Cockpit über alle Sitzungen (/cockpit)",
   "author": { "name": "Maximilian Haas" },
   "types": "./types/index.d.ts"

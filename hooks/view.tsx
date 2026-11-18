@@ -1,7 +1,7 @@
 import type { Limit, Subagent } from '../types'
 import { DONE, STATUS_DE, ago, duration } from './board'
 import type { Board, Row, RowState } from './board'
-import { MODES } from './modes'
+import { MODES, type ModeId } from './modes'
 
 // the drawing of /cockpit: tiles, one card per session, its subagents beneath
 
@@ -68,7 +68,7 @@ function subagent(E: any, a: Subagent, now: number) {
   )
 }
 
-function card(E: any, r: Row, self: string, now: number, jump?: (id: string) => void) {
+function card(E: any, r: Row, self: string, now: number, jump?: (id: string) => void, setMode?: (id: ModeId) => void) {
   const mode = MODES[r.mode as keyof typeof MODES]?.label ?? r.mode
   const meta = [r.project, mode, ago(r.ageMs), r.waitingFor ? WAIT_DE[r.waitingFor] : undefined].filter(Boolean).join(' · ')
   // finished ones only as a count, failed ones stay visible
@@ -95,13 +95,20 @@ function card(E: any, r: Row, self: string, now: number, jump?: (id: string) => 
         )}
       </E.Box>
       <E.Text size="caption" dimColor wrap="truncate-end">{meta}</E.Text>
+      {r.sessionId === self && setMode && (
+        <E.Box flexDirection="row" gap="xs" flexWrap="wrap">
+          {(Object.keys(MODES) as ModeId[]).map(m => (
+            <E.Button key={`modus-${m}`} variant={r.mode === m ? 'primary' : 'secondary'} onPress={() => setMode(m)}>{MODES[m].label}</E.Button>
+          ))}
+        </E.Box>
+      )}
       {shown.map(a => subagent(E, a, now))}
       {finished > 0 && <E.Text size="caption" dimColor>{`+${finished} fertig`}</E.Text>}
     </E.Box>
   )
 }
 
-export function cockpit(elements: any, surface: string, board: Board, self: string, now: number, jump?: (id: string) => void) {
+export function cockpit(elements: any, surface: string, board: Board, self: string, now: number, jump?: (id: string) => void, setMode?: (id: ModeId) => void) {
   const E = { Box: elements.Box, Text: elements.Text, Svg: elements.Svg, Button: elements.Button, svg: surface !== 'terminal' }
   const { counts, rows } = board
   return (
@@ -122,7 +129,7 @@ export function cockpit(elements: any, surface: string, board: Board, self: stri
       {GROUPS.filter(([state]) => rows.some(r => r.state === state)).map(([state, title]) => (
         <E.Box flexDirection="column" gap="sm">
           <E.Text size="caption" weight="semibold" dimColor>{`${title.toUpperCase()} · ${rows.filter(r => r.state === state).length}`}</E.Text>
-          {rows.filter(r => r.state === state).map(r => card(E, r, self, now, jump))}
+          {rows.filter(r => r.state === state).map(r => card(E, r, self, now, jump, setMode))}
         </E.Box>
       ))}
     </E.Box>
