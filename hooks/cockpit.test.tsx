@@ -127,7 +127,7 @@ test('a session without a title says so', async ($, on) => {
 })
 
 test('a closed pane with display aus stops reading the folder', async ($, on) => {
-  const { clock, state } = await start($, on, { files: {} })
+  const { clock, state } = await start($, on, { files: {}, setting: JSON.stringify({ anzeige: 'aus' }) })
   await clock.advance(5_000)
   state.panes = []
   await clock.advance(5_000)
@@ -173,6 +173,12 @@ test('/cockpit kompakt stores the setting and shows the counts', async ($, on) =
   world.setting = JSON.stringify({ anzeige: 'kompakt' })
   await clock.advance(5_000)
   expect(lastStatus(state)).toContain('⏳ 1 warten · ⚙ 1 arbeiten · ✓ 0 bereit · 🤖 0')
+})
+
+test('without a setting the status line shows the counts (kompakt)', async ($, on) => {
+  const { clock, state } = await start($, on, { files: twoSessions, noCommand: true })
+  await clock.advance(5_000)
+  expect(lastStatus(state)).toContain('⏳ 1 warten')
 })
 
 test('a setting written by another session reaches this one', async ($, on) => {

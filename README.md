@@ -33,9 +33,9 @@ Unter jeder Karte stehen ihre Unteragenten: Aufgabe, Modell, Agententyp, Worktre
 
 | Befehl | Wirkung |
 |---|---|
-| `/cockpit kompakt` | Zahlen in der Statuszeile jeder Sitzung |
+| `/cockpit kompakt` | Zahlen in der Statuszeile jeder Sitzung (Standard) |
 | `/cockpit detail` | dazu die Titel von bis zu zwei wartenden Sitzungen, der Rest als „+N“ |
-| `/cockpit aus` | Statuszeile wieder ohne Zahlen (Standard) |
+| `/cockpit aus` | Statuszeile ohne Zahlen |
 
 Die Einstellung gilt für alle Sitzungen mit dem Plugin und kommt dort spätestens nach 5 Sekunden an. Sie liegt in `~/.claude/leitstand-anzeige.json`. Die Zeichen bedeuten:
 

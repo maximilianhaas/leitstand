@@ -39,9 +39,9 @@ let busy = false
 async function readSetting($: any): Promise<string> {
   try {
     const value = JSON.parse(String(await $.fs.read(await settingPath($)))).anzeige
-    return DISPLAYS.includes(value) ? value : 'aus'
+    return DISPLAYS.includes(value) ? value : 'kompakt'
   } catch {
-    return 'aus'
+    return 'kompakt'
   }
 }
 
