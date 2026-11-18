@@ -4,7 +4,7 @@ Claude-Code-Plugin: Agentenmodi pro Sitzung und ein Cockpit über alle Sitzungen
 
 | Befehl | Wirkung |
 |---|---|
-| `/modus` | zeigt den aktuellen Modus |
+| `/modus` | Auswahl-Box mit den drei Modi (zeigt den aktuellen Modus) |
 | `/modus begleitet` | Standard: Plan zeigen, auf OK warten |
 | `/modus abwesend` | allein durcharbeiten, Fragen sammeln, Abschlussblock am Ende |
 | `/modus vorbereiten` | nur planen, nichts ändern |

@@ -5,7 +5,7 @@ import type { AppName } from '../types'
 import { HIDE_MS, buildBoard, compactLine } from './board'
 import { cockpit } from './view'
 
-import { MODES, parseMode, toMode } from './modes'
+import { MODES, parseMode, toMode, type ModeId } from './modes'
 import { agentSpawned, flagAsk, report, sessionEnded, sessionStarted, setStatus, turnEnded, turnStarted } from './reporter'
 
 // not exported: the engine refuses a $.state reference that leaves the module
@@ -227,13 +227,21 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'modus' }, async ($, e) => {
-    if (e.args.trim() === '') {
+    let arg = e.args
+    if (arg.trim() === '') {
       const current = toMode((await $.state.get(MODE_REF)).value)
-      return { text: `Aktueller Modus: ${MODES[current].label}. Möglich: ${IDS}.` }
+      const labels = (Object.keys(MODES) as ModeId[]).map(m => MODES[m].label)
+      try {
+        const picked = await $.ui.ask(`Welcher Modus soll gelten (jetzt: ${MODES[current].label})?`, { header: 'Modus', options: labels })
+        arg = (Object.keys(MODES) as ModeId[]).find(m => MODES[m].label === picked) ?? picked
+      } catch {
+        // dismissed, or no one to ask: just report the mode
+        return { text: `Aktueller Modus: ${MODES[current].label}. Möglich: ${IDS}.` }
+      }
     }
 
-    const id = parseMode(e.args)
-    if (!id) return { text: `Unbekannter Modus „${e.args.trim()}“. Möglich: ${IDS}.` }
+    const id = parseMode(arg)
+    if (!id) return { text: `Unbekannter Modus „${arg.trim()}“. Möglich: ${IDS}.` }
 
     await $.state.set(MODE_REF, id)
     await report($)
